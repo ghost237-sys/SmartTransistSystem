@@ -2,17 +2,11 @@ import uuid
 from django.contrib.gis.db import models as gis_models
 from django.db import models
 
-from domains.tenants.models import Tenant
+from domains.tenants.models import TenantScopedModel
 
 
-class Route(models.Model):
-    """
-    A defined path between two points, e.g. Nairobi -> Mombasa.
-    The actual path geometry is stored as a LineString for map display
-    and future distance/ETA calculations.
-    """
+class Route(TenantScopedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='routes')
     name = models.CharField(max_length=255, help_text='e.g. "Nairobi - Mombasa"')
     path = gis_models.LineStringField(srid=4326, help_text='Ordered route geometry, for map rendering.')
     distance_km = models.DecimalField(max_digits=6, decimal_places=2)
@@ -25,10 +19,6 @@ class Route(models.Model):
 
 
 class Stop(models.Model):
-    """
-    A specific boarding/alighting point along a route.
-    Ordered via sequence so we know stop 1, 2, 3 along the path.
-    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name='stops')
     name = models.CharField(max_length=255)
@@ -43,12 +33,8 @@ class Stop(models.Model):
         return f'{self.name} (stop {self.sequence} on {self.route.name})'
 
 
-class Trip(models.Model):
-    """
-    A specific scheduled departure of a vehicle along a route.
-    """
+class Trip(TenantScopedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='trips')
     route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name='trips')
     vehicle = models.ForeignKey('fleet.Vehicle', on_delete=models.CASCADE, related_name='trips')
     driver = models.ForeignKey(
@@ -84,3 +70,29 @@ class Trip(models.Model):
     def available_seats(self):
         booked = self.bookings.filter(status='confirmed').count()
         return max(self.total_seats - booked, 0)
+
+
+
+class Seat(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name='seats')
+    seat_number = models.PositiveIntegerField()
+    is_available = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['trip', 'seat_number']
+        unique_together = ['trip', 'seat_number']
+
+    def __str__(self):
+        return f'Seat {self.seat_number} on {self.trip}'
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        if is_new and not self.total_seats:
+            self.total_seats = self.vehicle.capacity
+        super().save(*args, **kwargs)
+        if is_new:
+            Seat.objects.bulk_create([
+                Seat(trip=self, seat_number=i)
+                for i in range(1, self.total_seats + 1)
+            ])

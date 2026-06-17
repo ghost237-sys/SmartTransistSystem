@@ -1,15 +1,11 @@
 import uuid
 from django.db import models
 
+from domains.tenants.models import TenantScopedModel
 
-class Booking(models.Model):
-    """
-    A commuter's reservation for one trip. No individual seat numbers are
-    tracked — Trip.available_seats is computed by counting confirmed
-    bookings against Trip.total_seats.
-    """
+
+class Booking(TenantScopedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='bookings')
     trip = models.ForeignKey('routing.Trip', on_delete=models.CASCADE, related_name='bookings')
     commuter = models.ForeignKey(
         'accounts.User', on_delete=models.CASCADE, related_name='bookings',
@@ -18,10 +14,10 @@ class Booking(models.Model):
     status = models.CharField(
         max_length=20,
         choices=[
-            ('held', 'Held'),           # payment in progress, 5-minute timeout window
-            ('confirmed', 'Confirmed'), # payment succeeded
+            ('held', 'Held'),
+            ('confirmed', 'Confirmed'),
             ('cancelled', 'Cancelled'),
-            ('expired', 'Expired'),     # hold timed out, never paid
+            ('expired', 'Expired'),
         ],
         default='held',
     )

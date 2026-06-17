@@ -1,15 +1,11 @@
 import uuid
 from django.db import models
 
+from domains.tenants.models import TenantScopedModel
 
-class Payment(models.Model):
-    """
-    Record of an M-Pesa transaction tied to a booking. One booking should
-    have at most one successful payment, but we keep failed/pending
-    attempts too for debugging and reconciliation.
-    """
+
+class Payment(TenantScopedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey('tenants.Tenant', on_delete=models.CASCADE, related_name='payments')
     booking = models.ForeignKey('booking.Booking', on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=8, decimal_places=2)
     phone_number = models.CharField(max_length=20)
