@@ -12,3 +12,4 @@ python-decouple==3.8
 gunicorn==22.0.0
 daphne==4.1.2
 sentry-sdk==2.3.1
+requests==2.32.3

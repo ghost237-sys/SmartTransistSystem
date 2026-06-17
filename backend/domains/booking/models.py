@@ -1,10 +1,14 @@
 import uuid
+from datetime import timedelta
 from django.db import models
+from django.utils import timezone
 
 from domains.tenants.models import TenantScopedModel
 
 
 class Booking(TenantScopedModel):
+    HOLD_DURATION_MINUTES = 5
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     trip = models.ForeignKey('routing.Trip', on_delete=models.CASCADE, related_name='bookings')
     commuter = models.ForeignKey(
@@ -25,6 +29,12 @@ class Booking(TenantScopedModel):
     qr_code_token = models.CharField(max_length=64, unique=True, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
+    hold_expires_at = models.DateTimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.status == 'held' and self.hold_expires_at is None:
+            self.hold_expires_at = timezone.now() + timedelta(minutes=self.HOLD_DURATION_MINUTES)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.commuter} - {self.trip} ({self.status})'

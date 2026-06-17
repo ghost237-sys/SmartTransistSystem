@@ -27,4 +27,6 @@ urlpatterns = [
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/fleet/', include('domains.fleet.urls')),
     path('api/routing/', include('domains.routing.urls')),
+    path('api/bookings/', include('domains.booking.urls')),
+    path('api/payments/', include('domains.payments.urls')),
 ]
