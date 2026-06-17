@@ -48,6 +48,18 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'django_celery_beat',
+
+
+    # Local apps
+    'domains.tenants',
+    'domains.accounts',
+    'domains.fleet',
+    'domains.routing',
+    'domains.booking',
+    'domains.tracking',
+    'domains.payments',
+    'domains.notifications',
+
 ]
 
 MIDDLEWARE = [
@@ -98,6 +110,10 @@ DATABASES = {
         'PORT': config('DB_PORT'),
     }
 }
+
+AUTH_USER_MODEL = 'accounts.User'
+
+
 
 
 # Password validation
