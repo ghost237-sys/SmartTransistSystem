@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
@@ -13,12 +14,6 @@ from .serializers import BookingSerializer
 
 
 class CreateBookingView(APIView):
-    """
-    Commuter requests a seat: we check availability, create a `held`
-    booking, fire the M-Pesa STK push, and record a `pending` Payment.
-    The booking is only flipped to `confirmed` later, by the webhook
-    callback in the payments app once Safaricom confirms the payment.
-    """
     permission_classes = [IsCommuter]
 
     def post(self, request):
@@ -29,25 +24,34 @@ class CreateBookingView(APIView):
         phone_number = serializer.validated_data['phone_number']
 
         try:
-            trip = Trip.all_objects.get(id=trip_id)
-        except Trip.DoesNotExist:
-            return Response({'detail': 'Trip not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-        if trip.available_seats <= 0:
-            return Response({'detail': 'No seats available on this trip.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
             normalized_phone = normalize_phone_number(phone_number)
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        booking = Booking.objects.create(
-            tenant=trip.tenant,
-            trip=trip,
-            commuter=request.user,
-            status='held',
-        )
+        with transaction.atomic():
+            try:
+                # select_for_update locks this Trip row until the transaction
+                # commits or rolls back, so a second concurrent request for
+                # the same trip blocks here until this one finishes —
+                # preventing two commuters from both grabbing the last seat.
+                trip = Trip.all_objects.select_for_update().get(id=trip_id)
+            except Trip.DoesNotExist:
+                return Response({'detail': 'Trip not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+            if trip.available_seats <= 0:
+                return Response({'detail': 'No seats available on this trip.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            booking = Booking.objects.create(
+                tenant=trip.tenant,
+                trip=trip,
+                commuter=request.user,
+                status='held',
+            )
+
+        # STK push happens OUTSIDE the transaction/lock deliberately — it's
+        # a slow network call to an external API, and holding a database
+        # row lock for the duration of a slow HTTP request would block
+        # every other booking attempt on this trip for that whole time.
         try:
             stk_response = initiate_stk_push(
                 phone_number=normalized_phone,
