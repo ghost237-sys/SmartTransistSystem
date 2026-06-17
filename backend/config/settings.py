@@ -169,13 +169,12 @@ CORS_ALLOWED_ORIGINS = config(
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'domains.accounts.authentication.TenantJWTAuthentication',
+        'domains.accounts.authentication.TenantAwareJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
 }
-
 
 # Channels
 ASGI_APPLICATION = 'config.asgi.application'

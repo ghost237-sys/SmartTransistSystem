@@ -1,20 +1,19 @@
 from rest_framework_simplejwt.authentication import JWTAuthentication
+
 from domains.tenants.middleware import set_current_tenant
 
 
-class TenantJWTAuthentication(JWTAuthentication):
+class TenantAwareJWTAuthentication(JWTAuthentication):
     """
-    Extends SimpleJWT's authentication to set the thread-local tenant
-    context immediately after the token is validated, so TenantManager
-    filters correctly on every DRF request without needing the middleware
-    to do it (middleware runs before JWT auth, so it can't do this).
+    Wraps the standard JWT authentication to also set the thread-local
+    tenant context once we know who the authenticated user is — this is
+    what makes TenantManager actually scope querysets correctly for API
+    requests, since TenantMiddleware alone can't see request.user in time.
     """
     def authenticate(self, request):
         result = super().authenticate(request)
-        if result is None:
-            set_current_tenant(None)
-            return None
-
-        user, token = result
-        set_current_tenant(user.tenant if user.tenant_id else None)
-        return user, token
+        if result is not None:
+            user, token = result
+            tenant = getattr(user, 'tenant', None)
+            set_current_tenant(tenant)
+        return result
