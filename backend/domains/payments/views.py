@@ -50,6 +50,7 @@ class MpesaCallbackView(APIView):
             booking.status = 'confirmed'
             booking.fare_paid = payment.amount
             booking.confirmed_at = timezone.now()
+            booking.generate_ticket_codes()
             booking.save()
         else:
             payment.status = 'failed' if result_code != 1032 else 'cancelled'
