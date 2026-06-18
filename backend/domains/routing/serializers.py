@@ -52,3 +52,11 @@ class TripSerializer(serializers.ModelSerializer):
             'total_seats', 'fare', 'status', 'created_at', 'available_seats'
         ]
         read_only_fields = ['id', 'created_at', 'available_seats']
+
+class SeatAvailabilitySerializer(serializers.Serializer):
+    trip_id = serializers.UUIDField()
+    seats_opening = serializers.IntegerField()
+    vehicle_latitude = serializers.FloatField(allow_null=True)
+    vehicle_longitude = serializers.FloatField(allow_null=True)
+    distance_km = serializers.FloatField(allow_null=True)
+    eta_minutes = serializers.FloatField(allow_null=True)

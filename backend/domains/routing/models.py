@@ -71,6 +71,14 @@ class Trip(TenantScopedModel):
         booked = self.bookings.filter(status='confirmed').count()
         return max(self.total_seats - booked, 0)
 
+    def seats_opening_at(self, stop):
+        """
+        Returns the count of confirmed bookings whose alighting_stop is
+        this stop — i.e. passengers getting off here, freeing their seat
+        for someone boarding at or after this point.
+        """
+        return self.bookings.filter(status='confirmed', alighting_stop=stop).count()
+
 
 
 class Seat(models.Model):

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from domains.accounts.permissions import IsDriver
+from domains.routing.models import Trip
 
 from .channels_utils import broadcast_position_update
 from .models import VehiclePosition
@@ -20,6 +21,18 @@ class PositionUpdateView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        trip_id = data.get('trip_id')
+
+        if trip_id:
+            trip_exists_for_driver = Trip.all_objects.filter(
+                id=trip_id, driver=request.user
+            ).exists()
+            if not trip_exists_for_driver:
+                return Response(
+                    {'detail': 'You are not assigned as the driver for this trip.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
         now = timezone.now()
 
         set_vehicle_position(
@@ -32,15 +45,15 @@ class PositionUpdateView(APIView):
 
         VehiclePosition.objects.create(
             vehicle_id=data['vehicle_id'],
-            trip_id=data.get('trip_id'),
+            trip_id=trip_id,
             location=Point(data['longitude'], data['latitude'], srid=4326),
             speed_kmh=data.get('speed_kmh'),
             recorded_at=now,
         )
 
-        if data.get('trip_id'):
+        if trip_id:
             broadcast_position_update(
-                trip_id=str(data['trip_id']),
+                trip_id=str(trip_id),
                 vehicle_id=str(data['vehicle_id']),
                 latitude=data['latitude'],
                 longitude=data['longitude'],

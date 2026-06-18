@@ -15,6 +15,16 @@ class Booking(TenantScopedModel):
         'accounts.User', on_delete=models.CASCADE, related_name='bookings',
         limit_choices_to={'role': 'commuter'}
     )
+    boarding_stop = models.ForeignKey(
+        'routing.Stop', on_delete=models.PROTECT, related_name='boardings',
+        null=True, blank=True,
+        help_text='Where the commuter gets on. Null = boards at route origin.'
+    )
+    alighting_stop = models.ForeignKey(
+        'routing.Stop', on_delete=models.PROTECT, related_name='alightings',
+        null=True, blank=True,
+        help_text='Where the commuter gets off. Null = rides to route end.'
+    )
     status = models.CharField(
         max_length=20,
         choices=[
