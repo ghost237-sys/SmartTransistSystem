@@ -25,6 +25,8 @@ class Vehicle(TenantScopedModel):
     vehicle_type = models.CharField(max_length=20, choices=VehicleType.choices, default=VehicleType.MATATU)
     capacity = models.PositiveIntegerField(help_text='Total passenger seats, excluding driver/conductor.')
     is_active = models.BooleanField(default=True)
+    insurance_expiry = models.DateField(null=True, blank=True)
+    inspection_expiry = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
