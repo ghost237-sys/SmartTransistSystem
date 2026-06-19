@@ -233,6 +233,12 @@ class DepartTripView(APIView):
         trip.status = 'departed'
         trip.save()
 
+        # Notify confirmed-but-not-boarded passengers that the bus has left
+        from domains.notifications.tasks import send_trip_departed_without_boarding_sms
+        missed = trip.bookings.filter(status='confirmed')
+        for booking in missed:
+            send_trip_departed_without_boarding_sms.delay(str(booking.id))
+
         return Response({'trip_id': str(trip.id), 'status': trip.status})
 
 

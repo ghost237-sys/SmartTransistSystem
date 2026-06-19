@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'domains.tracking',
     'domains.payments',
     'domains.notifications',
+    'domains.parcels',
 
 ]
 

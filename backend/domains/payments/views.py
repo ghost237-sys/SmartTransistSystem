@@ -52,12 +52,9 @@ class MpesaCallbackView(APIView):
             booking.confirmed_at = timezone.now()
             booking.generate_ticket_codes()
             booking.save()
-        else:
-            payment.status = 'failed' if result_code != 1032 else 'cancelled'
-            payment.save()
 
-            booking = payment.booking
-            booking.status = 'cancelled'
-            booking.save()
+            # Fire SMS notification asynchronously via Celery
+            from domains.notifications.tasks import send_booking_confirmed_sms
+            send_booking_confirmed_sms.delay(str(booking.id))
 
         return Response({'detail': 'Callback processed.'}, status=200)
