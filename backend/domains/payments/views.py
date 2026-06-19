@@ -7,8 +7,16 @@ from domains.booking.models import Booking
 
 from .models import Payment
 
+from django_ratelimit.decorators import ratelimit
+from django.utils.decorators import method_decorator
 
+
+@method_decorator(
+    ratelimit(key='ip', rate='60/m', method='POST', block=True),
+    name='dispatch'
+)
 class MpesaCallbackView(APIView):
+    ...
     """
     Daraja posts here asynchronously once the customer enters their PIN
     (or cancels, or the request times out). No auth — Safaricom can't
