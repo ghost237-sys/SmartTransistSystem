@@ -40,20 +40,24 @@ class LiveFleetView(APIView):
     permission_classes = [IsFleetOwnerOrSuperAdmin]
 
     def get(self, request):
-        active_trips = Trip.objects.filter(status='departed').select_related('vehicle', 'route')
+        active_trips = Trip.objects.filter(
+            status__in=['scheduled', 'departed']
+        ).select_related('vehicle', 'route')
 
         results = []
         for trip in active_trips:
             position = get_vehicle_position(str(trip.vehicle_id))
+            if position is None:
+                continue  # only show vehicles with a live position
             results.append({
                 'vehicle_id': trip.vehicle_id,
                 'plate_number': trip.vehicle.plate_number,
                 'trip_id': trip.id,
                 'route_name': trip.route.name,
-                'latitude': position['latitude'] if position else None,
-                'longitude': position['longitude'] if position else None,
-                'speed_kmh': position['speed_kmh'] if position else None,
-                'is_online': position is not None,
+                'latitude': position['latitude'],
+                'longitude': position['longitude'],
+                'speed_kmh': position['speed_kmh'],
+                'is_online': True,
             })
 
         serializer = LiveVehicleSerializer(results, many=True)

@@ -1,3 +1,5 @@
+from django.conf import settings
+from decouple import config
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
@@ -8,12 +10,35 @@ from domains.accounts.permissions import IsCommuter, IsConductor
 from domains.payments.mpesa import initiate_stk_push, normalize_phone_number
 from domains.payments.models import Payment
 from domains.routing.models import Trip
+from domains.routing.serializers import TripSerializer
 
 from .models import Booking
-from .serializers import BookingSerializer, CashPaymentSerializer, ManifestEntrySerializer, TicketVerificationSerializer
+from .serializers import (
+    BookingSerializer,
+    CashPaymentSerializer,
+    CommuterTicketSerializer,
+    ManifestEntrySerializer,
+    TicketVerificationSerializer,
+)
 
 from django.db.models import Sum
 
+
+def confirm_booking_payment(booking, payment, receipt=None):
+    """Mark a booking paid and issue boarding codes."""
+    booking.status = 'confirmed'
+    booking.fare_paid = payment.amount
+    booking.confirmed_at = timezone.now()
+    booking.generate_ticket_codes()
+    booking.save()
+
+    payment.status = 'success'
+    if receipt:
+        payment.mpesa_receipt_number = receipt
+    payment.save()
+
+    from domains.notifications.tasks import send_booking_confirmed_sms
+    send_booking_confirmed_sms.delay(str(booking.id))
 
 
 class CreateBookingView(APIView):
@@ -40,11 +65,14 @@ class CreateBookingView(APIView):
             if trip.available_seats <= 0:
                 return Response({'detail': 'No seats available on this trip.'}, status=status.HTTP_400_BAD_REQUEST)
 
+            alighting_stop_id = serializer.validated_data.get('alighting_stop_id')
+
             booking = Booking.objects.create(
                 tenant=trip.tenant,
                 trip=trip,
                 commuter=request.user,
                 status='held',
+                alighting_stop_id=alighting_stop_id,
             )
 
         try:
@@ -62,7 +90,7 @@ class CreateBookingView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        Payment.objects.create(
+        payment = Payment.objects.create(
             tenant=trip.tenant,
             booking=booking,
             amount=trip.fare,
@@ -71,14 +99,28 @@ class CreateBookingView(APIView):
             status='pending',
         )
 
-        return Response(
-            {
-                'booking_id': booking.id,
-                'status': booking.status,
-                'message': 'STK push sent. Enter your M-Pesa PIN to confirm.',
-            },
-            status=status.HTTP_201_CREATED,
+        auto_confirm = (
+            settings.DEBUG
+            and config('MPESA_ENV', default='sandbox') == 'sandbox'
+            and config('MPESA_AUTO_CONFIRM', default=True, cast=bool)
         )
+        if auto_confirm:
+            confirm_booking_payment(booking, payment, receipt='SANDBOX-DEMO')
+
+        response_data = {
+            'booking_id': booking.id,
+            'status': booking.status,
+            'message': (
+                'Booking confirmed. Show your ticket to the conductor when boarding.'
+                if booking.status == 'confirmed'
+                else 'STK push sent. Enter your M-Pesa PIN to confirm.'
+            ),
+        }
+        if booking.status == 'confirmed':
+            response_data['short_code'] = booking.short_code
+            response_data['qr_code_token'] = booking.qr_code_token
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class VerifyTicketView(APIView):
@@ -283,6 +325,36 @@ class CompleteTripView(APIView):
             'cash_payments': cash_count,
         })
 
+
+class MyTicketsView(APIView):
+    permission_classes = [IsCommuter]
+
+    def get(self, request):
+        bookings = Booking.objects.filter(commuter=request.user).order_by('-created_at')
+        serializer = CommuterTicketSerializer(bookings, many=True)
+        return Response(serializer.data)
+
+
+class BookingDetailView(APIView):
+    permission_classes = [IsCommuter]
+
+    def get(self, request, booking_id):
+        booking = Booking.objects.filter(id=booking_id, commuter=request.user).first()
+        if booking is None:
+            return Response({'detail': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = CommuterTicketSerializer(booking)
+        return Response(serializer.data)
+
+
+class ConductorTripsView(APIView):
+    permission_classes = [IsConductor]
+
+    def get(self, request):
+        trips = Trip.all_objects.filter(conductor=request.user).order_by('departure_time')
+        serializer = TripSerializer(trips, many=True)
+        return Response(serializer.data)
+
+
 class TripManifestView(APIView):
     """
     Conductor's full passenger list for a trip — every booking regardless
@@ -307,3 +379,16 @@ class TripManifestView(APIView):
             'status': trip.status,
             'manifest': serializer.data,
         })
+
+
+class MyBookingsView(APIView):
+    permission_classes = [IsCommuter]
+
+    def get(self, request):
+        bookings = Booking.all_objects.filter(
+            commuter=request.user
+        ).exclude(
+            status='expired'
+        ).order_by('-created_at')
+        serializer = CommuterTicketSerializer(bookings, many=True)
+        return Response(serializer.data)

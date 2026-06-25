@@ -68,8 +68,8 @@ class Trip(TenantScopedModel):
 
     @property
     def available_seats(self):
-        booked = self.bookings.filter(status='confirmed').count()
-        return max(self.total_seats - booked, 0)
+        occupied = self.bookings.filter(status__in=['confirmed', 'boarded']).count()
+        return max(self.total_seats - occupied, 0)
 
     def seats_opening_at(self, stop):
         """

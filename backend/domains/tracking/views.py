@@ -24,13 +24,21 @@ class PositionUpdateView(APIView):
         trip_id = data.get('trip_id')
 
         if trip_id:
-            trip_exists_for_driver = Trip.all_objects.filter(
-                id=trip_id, driver=request.user
-            ).exists()
-            if not trip_exists_for_driver:
+            trip = Trip.all_objects.filter(id=trip_id, driver=request.user).first()
+            if trip is None:
                 return Response(
                     {'detail': 'You are not assigned as the driver for this trip.'},
                     status=status.HTTP_403_FORBIDDEN,
+                )
+            if trip.status not in ('scheduled', 'departed'):
+                return Response(
+                    {'detail': f'Cannot report position for a trip with status "{trip.status}".'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if str(trip.vehicle_id) != str(data['vehicle_id']):
+                return Response(
+                    {'detail': 'Vehicle does not match the assigned trip.'},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
         now = timezone.now()

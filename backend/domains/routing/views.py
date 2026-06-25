@@ -1,4 +1,8 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from domains.accounts.permissions import IsFleetOwnerOrSuperAdmin
 
@@ -6,13 +10,13 @@ from .models import Route, Stop, Trip
 from .serializers import RouteSerializer, StopSerializer, TripSerializer
 
 
-from rest_framework.response import Response
-from rest_framework.views import APIView
-
 from .eta import estimate_arrival
 from .serializers import SeatAvailabilitySerializer
 
 from domains.tracking.redis_client import get_vehicle_position
+
+from rest_framework.permissions import IsAuthenticated
+from domains.accounts.permissions import IsFleetOwnerOrSuperAdmin, IsConductor, IsDriver
 
 
 
@@ -47,8 +51,13 @@ class TripViewSet(viewsets.ModelViewSet):
         serializer.save(tenant=self.request.user.tenant)
 
 
+class ListStopsView(APIView):
+    permission_classes = [IsAuthenticated]
 
-
+    def get(self, request):
+        stops = Stop.objects.all().order_by('name')
+        serializer = StopSerializer(stops, many=True)
+        return Response(serializer.data)
 
 
 
@@ -81,4 +90,93 @@ class StopSeatAvailabilityView(APIView):
             })
 
         serializer = SeatAvailabilitySerializer(results, many=True)
+        return Response(serializer.data)
+
+
+from rest_framework.permissions import IsAuthenticated
+
+class PublicTripListView(APIView):
+    """
+    Read-only trip listing for commuters — returns scheduled trips
+    with available seat counts. No tenant restriction since commuters
+    need to see all operators' trips.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        trips = Trip.all_objects.filter(
+            status='scheduled'
+        ).select_related('route', 'vehicle').order_by('departure_time')
+        serializer = TripSerializer(trips, many=True)
+        return Response(serializer.data)
+
+class PublicTripDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, trip_id):
+        trip = Trip.all_objects.filter(id=trip_id).select_related('route', 'vehicle').first()
+        if trip is None:
+            return Response({'detail': 'Trip not found.'}, status=404)
+        serializer = TripSerializer(trip)
+        return Response(serializer.data)
+
+
+
+class ConductorTripListView(APIView):
+    """
+    Returns trips assigned to the authenticated conductor,
+    filtered to active (scheduled/departed) trips only.
+    """
+    permission_classes = [IsConductor]
+
+    def get(self, request):
+        trips = Trip.all_objects.filter(
+            conductor=request.user,
+            status__in=['scheduled', 'departed']
+        ).select_related('route').order_by('departure_time')
+        serializer = TripSerializer(trips, many=True)
+        return Response(serializer.data)
+
+
+class DriverTripListView(APIView):
+    """
+    Returns trips assigned to the authenticated driver,
+    filtered to active (scheduled/departed) trips only.
+    """
+    permission_classes = [IsDriver]
+
+    def get(self, request):
+        trips = Trip.all_objects.filter(
+            driver=request.user,
+            status__in=['scheduled', 'departed']
+        ).select_related('route', 'vehicle').order_by('departure_time')
+        serializer = TripSerializer(trips, many=True)
+        return Response(serializer.data)
+
+
+class DriverTripDetailView(APIView):
+    permission_classes = [IsDriver]
+
+    def get(self, request, trip_id):
+        trip = Trip.all_objects.filter(
+            id=trip_id, driver=request.user
+        ).select_related('route', 'vehicle').first()
+        if trip is None:
+            return Response({'detail': 'Trip not found.'}, status=404)
+        serializer = TripSerializer(trip)
+        return Response(serializer.data)
+
+class TripStopsView(APIView):
+    """
+    Returns the stops for a specific trip's route.
+    Used by the commuter booking flow to select alighting stop.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, trip_id):
+        trip = Trip.all_objects.filter(id=trip_id).select_related('route').first()
+        if trip is None:
+            return Response({'detail': 'Trip not found.'}, status=404)
+        stops = trip.route.stops.all().order_by('sequence')
+        serializer = StopSerializer(stops, many=True)
         return Response(serializer.data)

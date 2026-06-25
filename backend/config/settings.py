@@ -181,10 +181,29 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # CORS
-CORS_ALLOWED_ORIGINS = config(
-    'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:5173,http://127.0.0.1:5173'
-).split(',')
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in config(
+        'CORS_ALLOWED_ORIGINS',
+        default=(
+            'http://localhost:5173,http://127.0.0.1:5173,'
+            'http://localhost:5174,http://127.0.0.1:5174'
+        ),
+    ).split(',')
+    if origin.strip()
+]
+
+# Vite may use 5174+ when 5173 is busy; allow any localhost port in local dev.
+_allow_localhost_cors = config(
+    'CORS_ALLOW_LOCALHOST_PORTS',
+    default='localhost' in ALLOWED_HOSTS or '127.0.0.1' in ALLOWED_HOSTS,
+    cast=bool,
+)
+if _allow_localhost_cors or DEBUG:
+    CORS_ALLOWED_ORIGIN_REGEXES = [
+        r'^http://localhost:\d+$',
+        r'^http://127\.0\.0\.1:\d+$',
+    ]
 
 
 # Django REST Framework

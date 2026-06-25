@@ -4,14 +4,67 @@ from .models import Booking
 
 
 
-
 class BookingSerializer(serializers.ModelSerializer):
     phone_number = serializers.CharField(write_only=True)
+    alighting_stop_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Booking
-        fields = ['id', 'trip', 'status', 'fare_paid', 'created_at', 'confirmed_at', 'phone_number']
+        fields = ['id', 'trip', 'status', 'fare_paid', 'created_at',
+                  'confirmed_at', 'phone_number', 'alighting_stop_id']
         read_only_fields = ['id', 'status', 'fare_paid', 'created_at', 'confirmed_at']
+
+
+class TripInfoSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    route_name = serializers.CharField(source='route.name')
+    departure_time = serializers.DateTimeField()
+    fare = serializers.DecimalField(max_digits=8, decimal_places=2)
+
+
+class CommuterTicketSerializer(serializers.ModelSerializer):
+    trip_details = serializers.SerializerMethodField()
+    alighting_stop_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Booking
+        fields = [
+            'id', 'trip', 'trip_details', 'status', 'fare_paid', 'created_at',
+            'confirmed_at', 'boarded_at', 'short_code', 'qr_code_token',
+            'alighting_stop_name',
+        ]
+
+    def get_trip_details(self, obj):
+        trip = obj.trip
+        return {
+            'id': str(trip.id),
+            'route_name': trip.route.name,
+            'departure_time': trip.departure_time,
+            'fare': trip.fare,
+        }
+
+    def get_alighting_stop_name(self, obj):
+        if obj.alighting_stop:
+            return obj.alighting_stop.name
+        return 'Final stop'
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.status not in ('confirmed', 'boarded'):
+            data['short_code'] = None
+            data['qr_code_token'] = None
+        return data
+
+
+class MyTicketSerializer(serializers.ModelSerializer):
+    trip = TripInfoSerializer(read_only=True)
+
+    class Meta:
+        model = Booking
+        fields = [
+            'id', 'trip', 'status', 'fare_paid', 'created_at',
+            'confirmed_at', 'boarded_at', 'short_code',
+        ]
 
 
 class TicketVerificationSerializer(serializers.Serializer):

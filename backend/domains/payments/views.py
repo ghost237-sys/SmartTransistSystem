@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from domains.booking.models import Booking
+from domains.booking.views import confirm_booking_payment
 
 from .models import Payment
 
@@ -50,19 +51,8 @@ class MpesaCallbackView(APIView):
                 (item['Value'] for item in metadata_items if item.get('Name') == 'MpesaReceiptNumber'),
                 None,
             )
-            payment.status = 'success'
-            payment.mpesa_receipt_number = receipt
+            confirm_booking_payment(booking=payment.booking, payment=payment, receipt=receipt)
+        else:
             payment.save()
-
-            booking = payment.booking
-            booking.status = 'confirmed'
-            booking.fare_paid = payment.amount
-            booking.confirmed_at = timezone.now()
-            booking.generate_ticket_codes()
-            booking.save()
-
-            # Fire SMS notification asynchronously via Celery
-            from domains.notifications.tasks import send_booking_confirmed_sms
-            send_booking_confirmed_sms.delay(str(booking.id))
 
         return Response({'detail': 'Callback processed.'}, status=200)

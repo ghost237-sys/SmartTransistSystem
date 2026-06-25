@@ -5,19 +5,18 @@ from .models import Route, Stop, Trip
 
 
 class StopSerializer(serializers.ModelSerializer):
-    latitude = serializers.FloatField(write_only=True)
-    longitude = serializers.FloatField(write_only=True)
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
 
     class Meta:
         model = Stop
-        fields = ['id', 'route', 'name', 'sequence', 'latitude', 'longitude']
-        read_only_fields = ['id']
+        fields = ['id', 'name', 'sequence', 'latitude', 'longitude']
 
-    def create(self, validated_data):
-        lat = validated_data.pop('latitude')
-        lng = validated_data.pop('longitude')
-        validated_data['location'] = Point(lng, lat, srid=4326)  # note: Point takes (x, y) = (lng, lat)
-        return super().create(validated_data)
+    def get_latitude(self, obj):
+        return obj.location.y if obj.location else None
+
+    def get_longitude(self, obj):
+        return obj.location.x if obj.location else None
 
 
 class RouteSerializer(serializers.ModelSerializer):
@@ -44,14 +43,17 @@ class RouteSerializer(serializers.ModelSerializer):
 
 class TripSerializer(serializers.ModelSerializer):
     available_seats = serializers.ReadOnlyField()
+    route_name = serializers.CharField(source='route.name', read_only=True)
+    vehicle_plate = serializers.CharField(source='vehicle.plate_number', read_only=True)
 
     class Meta:
         model = Trip
         fields = [
-            'id', 'route', 'vehicle', 'driver', 'conductor', 'departure_time',
+            'id', 'route', 'route_name', 'vehicle', 'vehicle_plate',
+            'driver', 'conductor', 'departure_time',
             'total_seats', 'fare', 'status', 'created_at', 'available_seats'
         ]
-        read_only_fields = ['id', 'created_at', 'available_seats']
+        read_only_fields = ['id', 'created_at', 'available_seats', 'route_name', 'vehicle_plate']
 
 class SeatAvailabilitySerializer(serializers.Serializer):
     trip_id = serializers.UUIDField()
