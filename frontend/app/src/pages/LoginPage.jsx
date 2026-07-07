@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
+
 
 const ROLE_REDIRECTS = {
   commuter:    '/commuter',
@@ -90,6 +91,13 @@ export default function LoginPage() {
             </Button>
           </form>
         </div>
+        <div><p className="text-center text-sm text-ink-light mt-4">
+          New to SmartTransit?{' '}
+          <Link to="/register" className="text-green-mid font-medium hover:text-green-deep transition-colors">
+          Create account
+          </Link>
+        </p></div>
+        
 
         <p className="text-center text-xs text-ink-light mt-6">
           SmartTransit — Know your bus is coming.{' '}

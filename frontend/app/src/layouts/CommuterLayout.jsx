@@ -35,6 +35,14 @@ export default function CommuterLayout() {
           >
             My Tickets
           </NavLink>
+          <NavLink
+            to="/commuter/parcels"
+            className={({ isActive }) =>
+            `text-sm font-medium transition-colors ${isActive ? 'text-amber' : 'text-white/70 hover:text-white'}`
+            }
+          >
+            Track Parcel
+          </NavLink>
           <button
             onClick={handleLogout}
             className="text-sm text-white/60 hover:text-white transition-colors"

@@ -11,6 +11,9 @@ import TripSearchPage from './pages/commuter/TripSearchPage'
 import BookingPage from './pages/commuter/BookingPage'
 import TrackingPage from './pages/commuter/TrackingPage'
 import MyTicketsPage from './pages/commuter/MyTicketsPage'
+import ParcelTrackingPage from './pages/commuter/ParcelTrackingPage'
+
+
 
 // Fleet owner pages
 import FleetLayout from './layouts/FleetLayout'
@@ -18,6 +21,8 @@ import DashboardPage from './pages/fleet/DashboardPage'
 import LiveMapPage from './pages/fleet/LiveMapPage'
 import AnalyticsPage from './pages/fleet/AnalyticsPage'
 import ParcelsPage from './pages/fleet/ParcelsPage'
+import FleetDashboard from "./pages/fleet/FleetDashboard";
+
 
 // Conductor pages
 import ConductorLayout from './layouts/ConductorLayout'
@@ -29,6 +34,12 @@ import CashPage from './pages/conductor/CashPage'
 import DriverLayout from './layouts/DriverLayout'
 import TripsPage from './pages/driver/TripsPage'
 import NavigatePage from './pages/driver/NavigatePage'
+
+// Register page
+import RegisterPage from './pages/RegisterPage'
+
+
+
 
 function RoleRedirect() {
   const { user } = useAuth()
@@ -47,6 +58,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       <Route path="/" element={<RoleRedirect />} />
 
@@ -60,6 +72,7 @@ export default function App() {
         <Route path="book/:tripId" element={<BookingPage />} />
         <Route path="track/:tripId" element={<TrackingPage />} />
         <Route path="tickets" element={<MyTicketsPage />} />
+        <Route path="parcels" element={<ParcelTrackingPage />} />
       </Route>
 
       {/* Fleet owner routes */}
@@ -72,6 +85,7 @@ export default function App() {
         <Route path="live" element={<LiveMapPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="parcels" element={<ParcelsPage />} />
+        <Route path="dashboard" element={<FleetDashboard />} />
       </Route>
 
       {/* Conductor routes */}
