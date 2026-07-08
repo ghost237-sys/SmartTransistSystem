@@ -79,7 +79,6 @@ INSTALLED_APPS = [
     'domains.payments',
     'domains.notifications',
     'domains.parcels',
-    'domains.stage_queue',
 
 ]
 

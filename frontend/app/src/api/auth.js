@@ -5,5 +5,3 @@ export const login = (username, password) =>
 
 export const refreshToken = (refresh) =>
   client.post('/api/auth/token/refresh/', { refresh }).then((res) => res.data)
-
-export const register = (data) => client.post('/api/accounts/register/', data)

@@ -8,12 +8,11 @@ from domains.tenants.models import Tenant
 
 class User(AbstractUser):
     class Role(models.TextChoices):
-        SUPER_ADMIN   = 'super_admin',    'Super Admin'
-        FLEET_OWNER   = 'fleet_owner',    'Fleet Owner'
-        STAGE_MANAGER = 'stage_manager',  'Stage Manager'
-        DRIVER        = 'driver',         'Driver'
-        CONDUCTOR     = 'conductor',      'Conductor'
-        COMMUTER      = 'commuter',       'Commuter'
+        SUPER_ADMIN = 'super_admin', 'Super Admin'
+        FLEET_OWNER = 'fleet_owner', 'Fleet Owner'
+        DRIVER = 'driver', 'Driver'
+        CONDUCTOR = 'conductor', 'Conductor'
+        COMMUTER = 'commuter', 'Commuter'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.COMMUTER)
@@ -29,5 +28,3 @@ class User(AbstractUser):
 
     def __str__(self):
         return f'{self.username} ({self.role})'
-
-

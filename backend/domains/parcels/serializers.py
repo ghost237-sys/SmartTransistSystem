@@ -17,8 +17,6 @@ class ParcelScanEventSerializer(serializers.ModelSerializer):
 
 class ParcelSerializer(serializers.ModelSerializer):
     scan_events = ParcelScanEventSerializer(many=True, read_only=True)
-    origin_stop_name = serializers.CharField(source='origin_stop.name', read_only=True, allow_null=True)
-    destination_stop_name = serializers.CharField(source='destination_stop.name', read_only=True, allow_null=True)
 
     class Meta:
         model = Parcel
@@ -26,8 +24,7 @@ class ParcelSerializer(serializers.ModelSerializer):
             'id', 'tracking_code', 'qr_token',
             'sender_name', 'sender_phone',
             'recipient_name', 'recipient_phone',
-            'trip', 'origin_stop', 'origin_stop_name',
-            'destination_stop', 'destination_stop_name',
+            'trip', 'origin_stop', 'destination_stop',
             'description', 'weight_kg', 'declared_value', 'fee',
             'status', 'created_at', 'updated_at', 'scan_events',
         ]

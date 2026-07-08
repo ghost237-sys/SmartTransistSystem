@@ -31,5 +31,4 @@ urlpatterns = [
     path('api/payments/', include('domains.payments.urls')),
     path('api/telemetry/', include('domains.tracking.urls')),
     path('api/parcels/', include('domains.parcels.urls')),
-    path('api/accounts/', include('domains.accounts.urls')),
 ]
