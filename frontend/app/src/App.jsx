@@ -7,8 +7,10 @@ import UnauthorizedPage from './pages/UnauthorizedPage'
 
 // Commuter pages
 import CommuterLayout from './layouts/CommuterLayout'
-import TripSearchPage from './pages/commuter/TripSearchPage'
+import RideSearchPage from './pages/commuter/RideSearchPage'
 import BookingPage from './pages/commuter/BookingPage'
+import PaymentPage from './pages/commuter/PaymentPage'
+import BookingConfirmedPage from './pages/commuter/BookingConfirmedPage'
 import TrackingPage from './pages/commuter/TrackingPage'
 import MyTicketsPage from './pages/commuter/MyTicketsPage'
 
@@ -18,6 +20,10 @@ import DashboardPage from './pages/fleet/DashboardPage'
 import LiveMapPage from './pages/fleet/LiveMapPage'
 import AnalyticsPage from './pages/fleet/AnalyticsPage'
 import ParcelsPage from './pages/fleet/ParcelsPage'
+import VehiclesPage from './pages/fleet/VehiclesPage'
+import DriversPage from './pages/fleet/DriversPage'
+import ConductorsPage from './pages/fleet/ConductorsPage'
+import RoutesPage from './pages/fleet/RoutesPage'
 
 // Conductor pages
 import ConductorLayout from './layouts/ConductorLayout'
@@ -29,6 +35,7 @@ import CashPage from './pages/conductor/CashPage'
 import DriverLayout from './layouts/DriverLayout'
 import TripsPage from './pages/driver/TripsPage'
 import NavigatePage from './pages/driver/NavigatePage'
+import DriverManifestPage from './pages/driver/DriverManifestPage'
 
 function RoleRedirect() {
   const { user } = useAuth()
@@ -56,8 +63,10 @@ export default function App() {
           <CommuterLayout />
         </RequireAuth>
       }>
-        <Route index element={<TripSearchPage />} />
+        <Route index element={<RideSearchPage />} />
         <Route path="book/:tripId" element={<BookingPage />} />
+        <Route path="pay/:tripId" element={<PaymentPage />} />
+        <Route path="booking/:bookingId" element={<BookingConfirmedPage />} />
         <Route path="track/:tripId" element={<TrackingPage />} />
         <Route path="tickets" element={<MyTicketsPage />} />
       </Route>
@@ -72,6 +81,10 @@ export default function App() {
         <Route path="live" element={<LiveMapPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="parcels" element={<ParcelsPage />} />
+        <Route path="vehicles" element={<VehiclesPage />} />
+        <Route path="drivers" element={<DriversPage />} />
+        <Route path="conductors" element={<ConductorsPage />} />
+        <Route path="routes" element={<RoutesPage />} />
       </Route>
 
       {/* Conductor routes */}
@@ -92,6 +105,8 @@ export default function App() {
         </RequireAuth>
       }>
         <Route index element={<TripsPage />} />
+        <Route path="manifest" element={<DriverManifestPage />} />
+        <Route path="manifest/:tripId" element={<DriverManifestPage />} />
         <Route path="trip/:tripId" element={<NavigatePage />} />
       </Route>
     </Routes>

@@ -18,6 +18,10 @@ export function AuthProvider({ children }) {
             id: payload.user_id,
             role: payload.role,
             tenantId: payload.tenant_id,
+            username: payload.username,
+            demoLat: payload.demo_lat ?? null,
+            demoLng: payload.demo_lng ?? null,
+            demoLocationLabel: payload.demo_location_label ?? null,
           })
         } else {
           localStorage.removeItem('access_token')
@@ -48,6 +52,10 @@ export function AuthProvider({ children }) {
         id: payload.user_id,
         role: payload.role,
         tenantId: payload.tenant_id,
+        username: payload.username,
+        demoLat: payload.demo_lat ?? null,
+        demoLng: payload.demo_lng ?? null,
+        demoLocationLabel: payload.demo_location_label ?? null,
       }
       
       setUser(user)

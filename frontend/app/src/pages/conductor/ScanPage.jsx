@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { verifyTicket } from '../../api/bookings'
 import Button from '../../components/ui/Button'
 
 export default function ScanPage() {
+  const queryClient = useQueryClient()
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
@@ -22,6 +24,9 @@ export default function ScanPage() {
       const res = await verifyTicket(payload)
       setResult(res.data)
       setInput('')
+      if (res.data.valid && res.data.trip) {
+        queryClient.invalidateQueries({ queryKey: ['manifest', res.data.trip] })
+      }
     } catch (err) {
       const detail = err.response?.data?.detail || 'Verification failed.'
       setError(detail)

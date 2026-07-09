@@ -24,6 +24,10 @@ export default function FleetLayout() {
         <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
           {[
             { to: '/fleet', label: 'Overview', end: true },
+            { to: '/fleet/vehicles', label: 'Vehicles' },
+            { to: '/fleet/drivers', label: 'Drivers' },
+            { to: '/fleet/conductors', label: 'Conductors' },
+            { to: '/fleet/routes', label: 'Routes' },
             { to: '/fleet/live', label: 'Live Map' },
             { to: '/fleet/analytics', label: 'Analytics' },
             { to: '/fleet/parcels', label: 'Parcels' },

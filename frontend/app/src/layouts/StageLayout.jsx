@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 
-export default function DriverLayout() {
+export default function StageLayout() {
   const { logout } = useAuth()
   const navigate = useNavigate()
 
@@ -11,26 +11,18 @@ export default function DriverLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-green-deep flex flex-col">
+    <div className="min-h-screen bg-purple-deep flex flex-col">
       <nav className="bg-black/30 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-50 backdrop-blur-sm">
-        <span className="font-bold text-green-pale text-lg tracking-wide">DRIVER</span>
+        <span className="font-bold text-purple-pale text-lg tracking-wide">STAGE MANAGER</span>
         <div className="flex items-center gap-4">
           <NavLink
-            to="/driver/manifest"
-            className={({ isActive }) =>
-              `text-sm font-bold transition-colors ${isActive ? 'text-amber' : 'text-white/60 hover:text-white'}`
-            }
-          >
-            MANIFEST
-          </NavLink>
-          <NavLink
-            to="/driver"
+            to="/stage"
             end
             className={({ isActive }) =>
               `text-sm font-bold transition-colors ${isActive ? 'text-amber' : 'text-white/60 hover:text-white'}`
             }
           >
-            TRIPS
+            DASHBOARD
           </NavLink>
           <button
             onClick={handleLogout}

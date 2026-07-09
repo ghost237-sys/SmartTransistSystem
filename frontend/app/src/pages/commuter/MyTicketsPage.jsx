@@ -70,9 +70,14 @@ export default function MyTicketsPage() {
                       </span>
                       <Badge variant={statusVariant(booking.status)}>{booking.status}</Badge>
                     </div>
-                    {booking.trip_details?.departure_time && (
+                    {booking.trip_details?.departure_time && booking.status === 'boarded' && (
                       <p className="text-sm text-ink-light">
                         {formatDateTime(booking.trip_details.departure_time)}
+                      </p>
+                    )}
+                    {booking.boarding_stop_name && (
+                      <p className="text-sm text-ink-light mt-1">
+                        Board at: {booking.boarding_stop_name}
                       </p>
                     )}
                     {booking.alighting_stop_name && (
@@ -85,9 +90,9 @@ export default function MyTicketsPage() {
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => navigate(`/commuter/track/${booking.trip}`)}
+                      onClick={() => navigate(`/commuter/booking/${booking.id}`)}
                     >
-                      Track
+                      Track bus
                     </Button>
                   )}
                 </div>
@@ -100,11 +105,7 @@ export default function MyTicketsPage() {
                   qrCodeToken={booking.qr_code_token}
                   status={booking.status}
                   routeName={booking.trip_details?.route_name}
-                  departureTime={
-                    booking.trip_details?.departure_time
-                      ? formatDateTime(booking.trip_details.departure_time)
-                      : null
-                  }
+                  boardingStop={booking.boarding_stop_name}
                   alightingStop={booking.alighting_stop_name}
                   farePaid={booking.fare_paid}
                 />

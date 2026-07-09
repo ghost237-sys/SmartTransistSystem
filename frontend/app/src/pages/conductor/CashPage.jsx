@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { recordCashPayment } from '../../api/bookings'
 import client from '../../api/client'
 import Button from '../../components/ui/Button'
 
 export default function CashPage() {
+  const queryClient = useQueryClient()
   const [selectedTrip, setSelectedTrip] = useState(null)
   const [amount, setAmount] = useState('')
   const [phone, setPhone] = useState('')
@@ -28,6 +29,7 @@ export default function CashPage() {
         commuter_phone: phone,
       })
       setResult(res.data)
+      queryClient.invalidateQueries({ queryKey: ['manifest', selectedTrip.id] })
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to record payment.')
     } finally {

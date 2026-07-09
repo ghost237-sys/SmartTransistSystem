@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY
 
-function createStopMarkerElement(stop, index, total) {
+function createStopMarkerElement(stop, index, total, isPickup = false) {
   const isFirst = index === 0
   const isLast = index === total - 1
 
@@ -19,13 +19,14 @@ function createStopMarkerElement(stop, index, total) {
 
   const dot = document.createElement('div')
   dot.style.cssText = `
-    width: ${isFirst || isLast ? '14px' : '10px'};
-    height: ${isFirst || isLast ? '14px' : '10px'};
+    width: ${isPickup ? '18px' : isFirst || isLast ? '14px' : '10px'};
+    height: ${isPickup ? '18px' : isFirst || isLast ? '14px' : '10px'};
     border-radius: 50%;
-    background: ${isFirst ? '#4ade80' : isLast ? '#F5A623' : '#1B4332'};
-    border: 2px solid white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    background: ${isPickup ? '#2563eb' : isFirst ? '#4ade80' : isLast ? '#F5A623' : '#1B4332'};
+    border: ${isPickup ? '3px solid #93c5fd' : '2px solid white'};
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
     flex-shrink: 0;
+    ${isPickup ? 'animation: pulse 1.5s ease-in-out infinite;' : ''}
   `
 
   const label = document.createElement('div')
@@ -59,6 +60,7 @@ export default function MapView({
   stops = [],
   vehiclePosition = null,
   routePath = null,
+  pickupStop = null,
   height = '400px',
   className = '',
 }) {
@@ -138,7 +140,8 @@ export default function MapView({
     markersRef.current = []
 
     stops.forEach((stop, index) => {
-      const el = createStopMarkerElement(stop, index, stops.length)
+      const isPickup = pickupStop && stop.id === pickupStop.id
+      const el = createStopMarkerElement(stop, index, stops.length, isPickup)
 
       const popup = new maplibregl.Popup({
         offset: 20,
@@ -158,7 +161,7 @@ export default function MapView({
 
       markersRef.current.push(marker)
     })
-  }, [stops, mapReady])
+  }, [stops, mapReady, pickupStop])
 
   // Update vehicle position
   useEffect(() => {

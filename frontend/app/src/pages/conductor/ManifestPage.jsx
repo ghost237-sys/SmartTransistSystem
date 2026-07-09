@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTripManifest, departTrip, completeTrip } from '../../api/bookings'
+import { getTripManifest, completeTrip } from '../../api/bookings'
 import client from '../../api/client'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
+import { formatBusLabel } from '../../utils/busLabel'
 
 function statusVariant(status) {
   return {
@@ -29,11 +30,7 @@ export default function ManifestPage() {
     queryKey: ['manifest', selectedTripId],
     queryFn: async () => (await getTripManifest(selectedTripId)),
     enabled: !!selectedTripId,
-  })
-
-  const departMutation = useMutation({
-    mutationFn: () => departTrip(selectedTripId),
-    onSuccess: () => queryClient.invalidateQueries(['manifest', selectedTripId]),
+    refetchInterval: 5000,
   })
 
   const completeMutation = useMutation({
@@ -42,6 +39,7 @@ export default function ManifestPage() {
   })
 
   const boarded = manifest?.manifest?.filter(b => b.status === 'boarded').length ?? 0
+  const confirmed = manifest?.manifest?.filter(b => b.status === 'confirmed').length ?? 0
   const total = manifest?.manifest?.length ?? 0
 
   if (loadingTrips) return (
@@ -75,15 +73,16 @@ export default function ManifestPage() {
                 <div>
                   <p className="text-white font-bold text-xl">{trip.route_name}</p>
                   <p className="text-white/50 text-sm mt-1">
-                    {new Date(trip.departure_time).toLocaleTimeString('en-KE', {
-                      hour: '2-digit', minute: '2-digit', hour12: true
-                    })}
+                    {formatBusLabel({ vehicle_plate: trip.vehicle_plate, fleet_code: trip.fleet_code })}
+                  </p>
+                  <p className="text-white/40 text-xs mt-1">
+                    {trip.status === 'active' ? 'Active service' : trip.status}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className={`text-sm font-bold uppercase ${
-                    trip.status === 'scheduled' ? 'text-green-400' :
-                    trip.status === 'departed' ? 'text-amber' : 'text-white/40'
+                    trip.status === 'active' ? 'text-green-400' :
+                    trip.status === 'completed' ? 'text-white/40' : 'text-amber'
                   }`}>{trip.status}</p>
                   <p className="text-white/40 text-xs mt-1">{trip.available_seats} seats left</p>
                 </div>
@@ -110,29 +109,39 @@ export default function ManifestPage() {
       </div>
 
       {manifest && (
+        <>
+          <div className="flex items-center justify-between bg-white/5 rounded-xl px-4 py-3">
+            <div>
+              <p className="text-white/60 text-xs uppercase tracking-wider">Bus</p>
+              <p className="text-white font-bold">
+                {formatBusLabel({ vehicle_plate: manifest.vehicle_plate, fleet_code: manifest.fleet_code })}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-white/60 text-xs uppercase tracking-wider">Confirmed / Boarded</p>
+              <p className="text-amber font-bold text-2xl">{confirmed} / {boarded}</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {manifest && (
         <div className="flex items-center justify-between bg-white/5 rounded-xl px-4 py-3">
           <div>
             <p className="text-white/60 text-xs uppercase tracking-wider">Status</p>
             <p className="text-white font-bold text-lg uppercase">{manifest.status}</p>
           </div>
           <div className="text-right">
-            <p className="text-white/60 text-xs uppercase tracking-wider">Boarded</p>
-            <p className="text-amber font-bold text-2xl">{boarded} / {total}</p>
+            <p className="text-white/60 text-xs uppercase tracking-wider">Total passengers</p>
+            <p className="text-amber font-bold text-2xl">{total}</p>
           </div>
         </div>
       )}
 
-      {manifest?.status === 'scheduled' && (
-        <Button className="w-full py-4 text-lg" loading={departMutation.isPending}
-          onClick={() => departMutation.mutate()}>
-          DEPART TRIP
-        </Button>
-      )}
-
-      {manifest?.status === 'departed' && (
+      {manifest?.status === 'active' && (
         <Button variant="danger" className="w-full py-4 text-lg" loading={completeMutation.isPending}
           onClick={() => completeMutation.mutate()}>
-          COMPLETE TRIP
+          END SERVICE
         </Button>
       )}
 

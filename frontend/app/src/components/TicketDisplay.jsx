@@ -17,7 +17,7 @@ export default function TicketDisplay({
   qrCodeToken,
   status = 'confirmed',
   routeName,
-  departureTime,
+  boardingStop,
   alightingStop,
   farePaid,
   compact = false,
@@ -83,7 +83,7 @@ export default function TicketDisplay({
         </div>
       </div>
 
-      {(routeName || departureTime || alightingStop || farePaid) && (
+      {(routeName || boardingStop || alightingStop || farePaid) && (
         <div className={`mt-5 pt-5 border-t border-green-200 ${compact ? 'text-sm' : ''}`}>
           <div className="flex flex-col gap-2 text-sm">
             {routeName && (
@@ -92,10 +92,10 @@ export default function TicketDisplay({
                 <span className="font-medium text-ink text-right">{routeName}</span>
               </div>
             )}
-            {departureTime && (
+            {boardingStop && (
               <div className="flex justify-between gap-4">
-                <span className="text-ink-light">Departure</span>
-                <span className="font-medium text-ink text-right">{departureTime}</span>
+                <span className="text-ink-light">Board at</span>
+                <span className="font-medium text-ink text-right">{boardingStop}</span>
               </div>
             )}
             {alightingStop && (
