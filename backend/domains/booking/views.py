@@ -6,8 +6,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from domains.accounts.permissions import IsCommuter, IsConductor
-from domains.payments.mpesa import initiate_stk_push, normalize_phone_number
+from domains.accounts.permissions import IsCommuter, IsConductorOrDriver, IsConductor
+from domains.payments.mpesa import initiate_stk_push, mock_stk_push, normalize_phone_number
 from domains.payments.models import Payment
 from domains.routing.models import Trip
 from domains.routing.serializers import TripSerializer
@@ -50,11 +50,14 @@ class CreateBookingView(APIView):
 
         trip_id = serializer.validated_data['trip'].id
         phone_number = serializer.validated_data['phone_number']
+        payment_method = serializer.validated_data.get('payment_method', 'mpesa')
 
         try:
             normalized_phone = normalize_phone_number(phone_number)
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        use_mock_payment = config('MPESA_MOCK_PAYMENTS', default=settings.DEBUG, cast=bool)
 
         with transaction.atomic():
             try:
@@ -65,6 +68,7 @@ class CreateBookingView(APIView):
             if trip.available_seats <= 0:
                 return Response({'detail': 'No seats available on this trip.'}, status=status.HTTP_400_BAD_REQUEST)
 
+            boarding_stop_id = serializer.validated_data.get('boarding_stop_id')
             alighting_stop_id = serializer.validated_data.get('alighting_stop_id')
 
             booking = Booking.objects.create(
@@ -72,23 +76,27 @@ class CreateBookingView(APIView):
                 trip=trip,
                 commuter=request.user,
                 status='held',
+                boarding_stop_id=boarding_stop_id,
                 alighting_stop_id=alighting_stop_id,
             )
 
-        try:
-            stk_response = initiate_stk_push(
-                phone_number=normalized_phone,
-                amount=trip.fare,
-                account_reference=str(booking.id)[:12],
-                transaction_desc=f'Seat booking for {trip.route.name}',
-            )
-        except Exception as e:
-            booking.status = 'cancelled'
-            booking.save()
-            return Response(
-                {'detail': f'Payment initiation failed: {str(e)}'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+        if use_mock_payment:
+            stk_response = mock_stk_push(payment_method=payment_method)
+        else:
+            try:
+                stk_response = initiate_stk_push(
+                    phone_number=normalized_phone,
+                    amount=trip.fare,
+                    account_reference=str(booking.id)[:12],
+                    transaction_desc=f'Seat booking for {trip.route.name}',
+                )
+            except Exception as e:
+                booking.status = 'cancelled'
+                booking.save()
+                return Response(
+                    {'detail': f'Payment initiation failed: {str(e)}'},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
 
         payment = Payment.objects.create(
             tenant=trip.tenant,
@@ -99,17 +107,21 @@ class CreateBookingView(APIView):
             status='pending',
         )
 
-        auto_confirm = (
+        auto_confirm = use_mock_payment or (
             settings.DEBUG
             and config('MPESA_ENV', default='sandbox') == 'sandbox'
             and config('MPESA_AUTO_CONFIRM', default=True, cast=bool)
         )
         if auto_confirm:
-            confirm_booking_payment(booking, payment, receipt='SANDBOX-DEMO')
+            confirm_booking_payment(
+                booking, payment,
+                receipt=f'MOCK-{payment_method.upper()}-DEMO',
+            )
 
         response_data = {
             'booking_id': booking.id,
             'status': booking.status,
+            'payment_method': payment_method,
             'message': (
                 'Booking confirmed. Show your ticket to the conductor when boarding.'
                 if booking.status == 'confirmed'
@@ -266,13 +278,16 @@ class DepartTripView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if trip.status != 'scheduled':
+        # On-demand model: trips are always active, no separate 'departed' state
+        # This endpoint is deprecated but kept for compatibility
+        if trip.status != 'active':
             return Response(
-                {'detail': f'Trip cannot be departed from status "{trip.status}".'},
+                {'detail': f'Trip must be active to depart.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        trip.status = 'departed'
+        # No status change needed for on-demand model
+        # trip.status = 'departed'  # Removed for on-demand model
         trip.save()
 
         # Notify confirmed-but-not-boarded passengers that the bus has left
@@ -302,9 +317,9 @@ class CompleteTripView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if trip.status != 'departed':
+        if trip.status != 'active':
             return Response(
-                {'detail': f'Trip cannot be completed from status "{trip.status}". It must be departed first.'},
+                {'detail': f'Trip cannot be completed from status "{trip.status}". It must be active.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -346,37 +361,84 @@ class BookingDetailView(APIView):
         return Response(serializer.data)
 
 
+class BookingPickupStatusView(APIView):
+    """Live ETA and vehicle position for a confirmed booking's pickup stop."""
+    permission_classes = [IsCommuter]
+
+    def get(self, request, booking_id):
+        booking = Booking.objects.filter(
+            id=booking_id, commuter=request.user
+        ).select_related('trip__vehicle', 'boarding_stop').first()
+        if booking is None:
+            return Response({'detail': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        pickup_stop = booking.boarding_stop
+        if pickup_stop is None:
+            pickup_stop = booking.trip.route.stops.order_by('sequence').first()
+
+        from domains.routing.eta import estimate_arrival
+        from domains.tracking.redis_client import get_vehicle_position
+
+        eta_data = estimate_arrival(booking.trip, pickup_stop) if pickup_stop else None
+        position = get_vehicle_position(str(booking.trip.vehicle_id))
+
+        return Response({
+            'booking_id': str(booking.id),
+            'trip_id': str(booking.trip_id),
+            'status': booking.status,
+            'fleet_code': booking.trip.vehicle.fleet_code or booking.trip.vehicle.plate_number,
+            'vehicle_plate': booking.trip.vehicle.plate_number,
+            'pickup_stop_id': str(pickup_stop.id) if pickup_stop else None,
+            'pickup_stop_name': pickup_stop.name if pickup_stop else None,
+            'pickup_latitude': pickup_stop.location.y if pickup_stop and pickup_stop.location else None,
+            'pickup_longitude': pickup_stop.location.x if pickup_stop and pickup_stop.location else None,
+            'eta_minutes': eta_data['eta_minutes'] if eta_data else None,
+            'distance_km': eta_data['distance_km'] if eta_data else None,
+            'vehicle_latitude': position['latitude'] if position else None,
+            'vehicle_longitude': position['longitude'] if position else None,
+            'speed_kmh': position.get('speed_kmh') if position else None,
+        })
+
+
 class ConductorTripsView(APIView):
     permission_classes = [IsConductor]
 
     def get(self, request):
-        trips = Trip.all_objects.filter(conductor=request.user).order_by('departure_time')
+        trips = Trip.all_objects.filter(conductor=request.user).order_by('-created_at')
         serializer = TripSerializer(trips, many=True)
         return Response(serializer.data)
 
 
 class TripManifestView(APIView):
     """
-    Conductor's full passenger list for a trip — every booking regardless
-    of status, so a conductor can see who's confirmed-but-not-boarded,
-    who's already boarded, and who cancelled.
+    Passenger list for conductor or driver on an active trip.
+    Updates as bookings are confirmed and passengers board.
     """
-    permission_classes = [IsConductor]
+    permission_classes = [IsConductorOrDriver]
 
     def get(self, request, trip_id):
-        trip = Trip.all_objects.filter(id=trip_id, conductor=request.user).first()
+        trip = Trip.all_objects.filter(id=trip_id).first()
         if trip is None:
             return Response(
-                {'detail': 'Trip not found or you are not assigned as conductor for it.'},
-                status=status.HTTP_403_FORBIDDEN,
+                {'detail': 'Trip not found.'},
+                status=status.HTTP_404_NOT_FOUND,
             )
+
+        if request.user.role == 'conductor' and trip.conductor_id != request.user.id:
+            return Response({'detail': 'You are not assigned as conductor for this trip.'}, status=403)
+        if request.user.role == 'driver' and trip.driver_id != request.user.id:
+            return Response({'detail': 'You are not assigned as driver for this trip.'}, status=403)
 
         bookings = trip.bookings.exclude(status__in=['expired', 'cancelled']).order_by('created_at')
         serializer = ManifestEntrySerializer(bookings, many=True)
 
+        vehicle = trip.vehicle
         return Response({
             'trip_id': str(trip.id),
             'status': trip.status,
+            'route_name': trip.route.name,
+            'vehicle_plate': vehicle.plate_number,
+            'fleet_code': vehicle.fleet_code or vehicle.plate_number,
             'manifest': serializer.data,
         })
 

@@ -16,7 +16,7 @@ def get_redis_client():
     return _redis_client
 
 
-def set_vehicle_position(vehicle_id, latitude, longitude, speed_kmh, recorded_at):
+def set_vehicle_position(vehicle_id, latitude, longitude, speed_kmh, recorded_at, ttl_seconds=30):
     """
     Stores the live position with a 30-second expiry — if a vehicle stops
     sending updates (offline, app closed, crashed), the key disappears on
@@ -31,7 +31,7 @@ def set_vehicle_position(vehicle_id, latitude, longitude, speed_kmh, recorded_at
         'speed_kmh': speed_kmh,
         'recorded_at': recorded_at,
     })
-    client.set(key, value, ex=30)
+    client.set(key, value, ex=ttl_seconds)
 
 
 def get_vehicle_position(vehicle_id):

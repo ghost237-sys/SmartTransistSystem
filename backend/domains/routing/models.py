@@ -7,10 +7,14 @@ from domains.tenants.models import TenantScopedModel
 
 class Route(TenantScopedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=255, help_text='e.g. "Nairobi - Mombasa"')
-    path = gis_models.LineStringField(srid=4326, help_text='Ordered route geometry, for map rendering.')
+    name = models.CharField(max_length=255)
+    path = gis_models.LineStringField(srid=4326)
     distance_km = models.DecimalField(max_digits=6, decimal_places=2)
     estimated_duration_minutes = models.PositiveIntegerField()
+    max_pickup_distance_km = models.PositiveIntegerField(
+        default=50,
+        help_text='Maximum distance in km a bus can be from commuter and still be shown.'
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -45,26 +49,28 @@ class Trip(TenantScopedModel):
         'accounts.User', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='trips_as_conductor', limit_choices_to={'role': 'conductor'}
     )
-    departure_time = models.DateTimeField()
-    total_seats = models.PositiveIntegerField(help_text='Snapshot of vehicle capacity at trip creation time.')
+    departure_time = models.DateTimeField(
+        null=True, blank=True,
+        help_text='For on-demand routes this is when the service started, not a fixed schedule.'
+    )
+    total_seats = models.PositiveIntegerField()
     fare = models.DecimalField(max_digits=8, decimal_places=2)
     status = models.CharField(
         max_length=20,
         choices=[
-            ('scheduled', 'Scheduled'),
-            ('departed', 'Departed'),
+            ('active', 'Active'),
             ('completed', 'Completed'),
             ('cancelled', 'Cancelled'),
         ],
-        default='scheduled',
+        default='active',
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['departure_time']
+        ordering = ['-created_at']
 
     def __str__(self):
-        return f'{self.route.name} @ {self.departure_time}'
+        return f'{self.route.name} — {self.vehicle.fleet_code or self.vehicle.plate_number}'
 
     @property
     def available_seats(self):
@@ -72,11 +78,6 @@ class Trip(TenantScopedModel):
         return max(self.total_seats - occupied, 0)
 
     def seats_opening_at(self, stop):
-        """
-        Returns the count of confirmed bookings whose alighting_stop is
-        this stop — i.e. passengers getting off here, freeing their seat
-        for someone boarding at or after this point.
-        """
         return self.bookings.filter(status='confirmed', alighting_stop=stop).count()
 
 
@@ -104,3 +105,49 @@ class Seat(models.Model):
                 Seat(trip=self, seat_number=i)
                 for i in range(1, self.total_seats + 1)
             ])
+
+
+class TransferStation(models.Model):
+    """
+    A physical location where passengers can transfer between routes.
+    This is a stop that serves as a connection point between different routes.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    location = gis_models.PointField(srid=4326)
+    buffer_minutes = models.PositiveIntegerField(
+        default=5,
+        help_text='Minimum buffer time in minutes required for a safe transfer'
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+
+class LinkedRoute(models.Model):
+    """
+    Defines a connection between two routes via a transfer station.
+    Passengers can book a journey that spans both routes.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    first_route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name='linked_as_first')
+    second_route = models.ForeignKey(Route, on_delete=models.CASCADE, related_name='linked_as_second')
+    transfer_station = models.ForeignKey(TransferStation, on_delete=models.CASCADE, related_name='linked_routes')
+    first_route_stop = models.ForeignKey(
+        Stop, on_delete=models.CASCADE, related_name='linked_as_first_stop',
+        help_text='Stop on first route where passenger alights to transfer'
+    )
+    second_route_stop = models.ForeignKey(
+        Stop, on_delete=models.CASCADE, related_name='linked_as_second_stop',
+        help_text='Stop on second route where passenger boards after transfer'
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['first_route', 'second_route', 'transfer_station']
+
+    def __str__(self):
+        return f'{self.first_route.name} → {self.second_route.name} via {self.transfer_station.name}'

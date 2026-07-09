@@ -30,7 +30,7 @@ class PositionUpdateView(APIView):
                     {'detail': 'You are not assigned as the driver for this trip.'},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-            if trip.status not in ('scheduled', 'departed'):
+            if trip.status != 'active':
                 return Response(
                     {'detail': f'Cannot report position for a trip with status "{trip.status}".'},
                     status=status.HTTP_400_BAD_REQUEST,

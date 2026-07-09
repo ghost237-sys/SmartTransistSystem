@@ -5,13 +5,21 @@ from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from domains.accounts.permissions import IsFleetOwnerOrSuperAdmin
+from domains.accounts.permissions import IsDriver, IsFleetOwnerOrSuperAdmin, IsFleetOwnerOrSuperAdminOrDriver
 from domains.routing.models import Trip
 from domains.tracking.redis_client import get_vehicle_position
 
 from .analytics import get_fleet_analytics
 from .models import Fleet, Vehicle
 from .serializers import FleetAnalyticsSerializer, FleetSerializer, LiveVehicleSerializer, VehicleSerializer
+
+
+def sync_vehicle_crew_to_active_trips(vehicle):
+    """Keep active trip driver/conductor in sync with vehicle assignment."""
+    Trip.all_objects.filter(vehicle=vehicle, status='active').update(
+        driver=vehicle.assigned_driver,
+        conductor=vehicle.assigned_conductor,
+    )
 
 
 class FleetViewSet(viewsets.ModelViewSet):
@@ -30,10 +38,29 @@ class VehicleViewSet(viewsets.ModelViewSet):
     permission_classes = [IsFleetOwnerOrSuperAdmin]
 
     def get_queryset(self):
-        return Vehicle.objects.all()
+        # Use all_objects to bypass tenant filtering for drivers
+        return Vehicle.all_objects.all()
+
+    def get_permissions(self):
+        # Allow fleet owners, super admins, and drivers to list vehicles
+        if self.action == 'list':
+            return [IsFleetOwnerOrSuperAdminOrDriver()]
+        return [IsFleetOwnerOrSuperAdmin()]
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant)
+        # Get or create fleet for the tenant
+        fleet = Fleet.objects.filter(tenant=self.request.user.tenant).first()
+        if not fleet:
+            fleet = Fleet.objects.create(
+                tenant=self.request.user.tenant,
+                name=f"{self.request.user.tenant.name} Fleet"
+            )
+        serializer.save(tenant=self.request.user.tenant, fleet=fleet)
+        sync_vehicle_crew_to_active_trips(serializer.instance)
+
+    def perform_update(self, serializer):
+        vehicle = serializer.save()
+        sync_vehicle_crew_to_active_trips(vehicle)
 
 
 class LiveFleetView(APIView):
@@ -41,7 +68,7 @@ class LiveFleetView(APIView):
 
     def get(self, request):
         active_trips = Trip.objects.filter(
-            status__in=['scheduled', 'departed']
+            status='active'
         ).select_related('vehicle', 'route')
 
         results = []

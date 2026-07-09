@@ -53,8 +53,7 @@ def send_booking_confirmed_sms(self, booking_id):
             return
         message = (
             f"Booking confirmed! Your seat on {booking.trip.route.name} "
-            f"departing {booking.trip.departure_time.strftime('%d %b %Y %H:%M')} is confirmed. "
-            f"Short code: {booking.short_code}. Show this to the conductor."
+            f"is confirmed. Short code: {booking.short_code}. Show this to the conductor."
         )
         _send_and_log(booking.commuter, 'booking_confirmed', message)
     except Exception as exc:

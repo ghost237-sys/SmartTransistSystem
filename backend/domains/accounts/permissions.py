@@ -26,13 +26,25 @@ class IsCommuter(BasePermission):
         return bool(request.user and request.user.is_authenticated and request.user.role == 'commuter')
 
 
+class IsConductorOrDriver(BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user and request.user.is_authenticated and
+            request.user.role in ('conductor', 'driver')
+        )
+
+
 class IsFleetOwnerOrSuperAdmin(BasePermission):
-    """
-    Common pattern: fleet owners manage their own tenant's data,
-    super_admins can manage anything across all tenants.
-    """
     def has_permission(self, request, view):
         return bool(
             request.user and request.user.is_authenticated and
             request.user.role in ('fleet_owner', 'super_admin')
+        )
+
+
+class IsFleetOwnerOrSuperAdminOrDriver(BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user and request.user.is_authenticated and
+            request.user.role in ('fleet_owner', 'super_admin', 'driver')
         )

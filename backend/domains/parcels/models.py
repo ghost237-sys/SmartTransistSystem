@@ -7,7 +7,7 @@ from domains.tenants.models import TenantScopedModel
 class Parcel(TenantScopedModel):
     """
     A parcel registered at an origin terminal for transport to a
-    destination terminal on a scheduled bus trip.
+    destination terminal on an active bus trip.
     """
     class Status(models.TextChoices):
         REGISTERED   = 'registered',   'Registered at origin'

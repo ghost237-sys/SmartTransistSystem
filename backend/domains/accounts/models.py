@@ -25,6 +25,18 @@ class User(AbstractUser):
         help_text='Null for super_admin and commuter roles, which are not tied to a single operator.'
     )
     phone_number = models.CharField(max_length=20, blank=True)
+    demo_latitude = models.FloatField(
+        null=True, blank=True,
+        help_text='Preset demo location latitude for investor presentations.',
+    )
+    demo_longitude = models.FloatField(
+        null=True, blank=True,
+        help_text='Preset demo location longitude for investor presentations.',
+    )
+    demo_location_label = models.CharField(
+        max_length=255, blank=True,
+        help_text='Human-readable label for the demo location, e.g. "Githurai 45".',
+    )
 
     def __str__(self):
         return f'{self.username} ({self.role})'

@@ -49,6 +49,7 @@ class QueueEntry(TenantScopedModel):
         LOADING   = 'loading',   'Loading passengers'
         DEPARTED  = 'departed',  'Departed'
         SKIPPED   = 'skipped',   'Skipped by stage manager'
+        FULL      = 'full',      'Vehicle full, ready to depart'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     stage = models.ForeignKey(Stage, on_delete=models.CASCADE, related_name='queue_entries')
@@ -58,6 +59,10 @@ class QueueEntry(TenantScopedModel):
     driver = models.ForeignKey(
         'accounts.User', on_delete=models.PROTECT,
         related_name='queue_entries', limit_choices_to={'role': 'driver'}
+    )
+    conductor = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='conductor_queue_entries', limit_choices_to={'role': 'conductor'}
     )
     route = models.ForeignKey(
         'routing.Route', on_delete=models.PROTECT,
@@ -70,6 +75,10 @@ class QueueEntry(TenantScopedModel):
         default=False,
         help_text='Stage manager has physically verified this bus has arrived.'
     )
+    position = models.PositiveIntegerField(
+        default=0,
+        help_text='Manual position in queue for stage manager reordering.'
+    )
     time_cap_minutes = models.PositiveIntegerField(
         default=15,
         help_text='How long this bus may stay in the loading bay before being flagged.'
@@ -80,9 +89,13 @@ class QueueEntry(TenantScopedModel):
     loading_started_at = models.DateTimeField(null=True, blank=True)
     departed_at = models.DateTimeField(null=True, blank=True)
     time_cap_exceeded = models.BooleanField(default=False)
+    trip = models.ForeignKey(
+        'routing.Trip', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='queue_entry'
+    )
 
     class Meta:
-        ordering = ['arrived_at']
+        ordering = ['position', 'arrived_at']
 
     def __str__(self):
         vehicle_id = self.vehicle.fleet_code or self.vehicle.plate_number
@@ -90,9 +103,13 @@ class QueueEntry(TenantScopedModel):
 
     @property
     def queue_position(self):
-        if self.status != 'holding':
+        if self.status not in ['holding', 'called_up']:
             return None
-        ahead = QueueEntry.objects.filter(
+        if self.position > 0:
+            return self.position
+        if self.status != 'holding' or not self.confirmed_at:
+            return None
+        ahead = QueueEntry.all_objects.filter(
             stage=self.stage,
             status='holding',
             confirmed=True,

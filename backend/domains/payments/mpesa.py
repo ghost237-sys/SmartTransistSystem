@@ -65,6 +65,21 @@ def generate_password_and_timestamp():
     return password, timestamp
 
 
+def mock_stk_push(payment_method='mpesa'):
+    """
+    Demo stub — never calls Safaricom. Returns a fake Daraja-shaped response
+    so booking flow works offline during investor demos.
+    """
+    import uuid
+    return {
+        'MerchantRequestID': f'mock-merchant-{uuid.uuid4().hex[:12]}',
+        'CheckoutRequestID': f'MOCK-{payment_method.upper()}-{uuid.uuid4().hex[:16]}',
+        'ResponseCode': '0',
+        'ResponseDescription': 'Success. Request accepted for processing',
+        'CustomerMessage': 'Mock payment initiated.',
+    }
+
+
 def initiate_stk_push(phone_number, amount, account_reference, transaction_desc):
     """
     Initiates an STK push (the M-Pesa PIN prompt) to the customer's phone.

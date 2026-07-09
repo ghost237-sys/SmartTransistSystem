@@ -6,12 +6,17 @@ from .models import Booking
 
 class BookingSerializer(serializers.ModelSerializer):
     phone_number = serializers.CharField(write_only=True)
+    payment_method = serializers.CharField(write_only=True, required=False, default='mpesa')
+    boarding_stop_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     alighting_stop_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Booking
-        fields = ['id', 'trip', 'status', 'fare_paid', 'created_at',
-                  'confirmed_at', 'phone_number', 'alighting_stop_id']
+        fields = [
+            'id', 'trip', 'status', 'fare_paid', 'created_at',
+            'confirmed_at', 'phone_number', 'payment_method',
+            'boarding_stop_id', 'alighting_stop_id',
+        ]
         read_only_fields = ['id', 'status', 'fare_paid', 'created_at', 'confirmed_at']
 
 
@@ -24,6 +29,7 @@ class TripInfoSerializer(serializers.Serializer):
 
 class CommuterTicketSerializer(serializers.ModelSerializer):
     trip_details = serializers.SerializerMethodField()
+    boarding_stop_name = serializers.SerializerMethodField()
     alighting_stop_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -31,17 +37,26 @@ class CommuterTicketSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'trip', 'trip_details', 'status', 'fare_paid', 'created_at',
             'confirmed_at', 'boarded_at', 'short_code', 'qr_code_token',
-            'alighting_stop_name',
+            'boarding_stop_name', 'alighting_stop_name',
         ]
 
     def get_trip_details(self, obj):
         trip = obj.trip
+        vehicle = trip.vehicle
         return {
             'id': str(trip.id),
             'route_name': trip.route.name,
             'departure_time': trip.departure_time,
             'fare': trip.fare,
+            'fleet_code': vehicle.fleet_code or vehicle.plate_number,
+            'vehicle_plate': vehicle.plate_number,
+            'vehicle_id': str(vehicle.id),
         }
+
+    def get_boarding_stop_name(self, obj):
+        if obj.boarding_stop:
+            return obj.boarding_stop.name
+        return 'Route origin'
 
     def get_alighting_stop_name(self, obj):
         if obj.alighting_stop:
