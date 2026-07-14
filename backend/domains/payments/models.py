@@ -6,7 +6,7 @@ from domains.tenants.models import TenantScopedModel
 
 class Payment(TenantScopedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    booking = models.ForeignKey('booking.Booking', on_delete=models.CASCADE, related_name='payments')
+    booking = models.ForeignKey('booking.Booking', on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
     amount = models.DecimalField(max_digits=8, decimal_places=2)
     phone_number = models.CharField(max_length=20)
     mpesa_receipt_number = models.CharField(max_length=50, null=True, blank=True, unique=True)

@@ -71,12 +71,14 @@ def mock_stk_push(payment_method='mpesa'):
     so booking flow works offline during investor demos.
     """
     import uuid
+    receipt = f'MOCK-{payment_method.upper()}-{uuid.uuid4().hex[:12]}'
     return {
         'MerchantRequestID': f'mock-merchant-{uuid.uuid4().hex[:12]}',
         'CheckoutRequestID': f'MOCK-{payment_method.upper()}-{uuid.uuid4().hex[:16]}',
         'ResponseCode': '0',
         'ResponseDescription': 'Success. Request accepted for processing',
         'CustomerMessage': 'Mock payment initiated.',
+        'receipt': receipt,
     }
 
 

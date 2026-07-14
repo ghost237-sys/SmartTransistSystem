@@ -12,6 +12,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['role'] = user.role
         token['tenant_id'] = str(user.tenant_id) if user.tenant_id else None
         token['username'] = user.username
+        token['phone_number'] = user.phone_number or ''
         if user.demo_latitude is not None and user.demo_longitude is not None:
             token['demo_lat'] = user.demo_latitude
             token['demo_lng'] = user.demo_longitude
@@ -81,3 +82,4 @@ class StaffSerializer(serializers.ModelSerializer):
             instance.password = make_password(password)
         instance.save()
         return instance
+

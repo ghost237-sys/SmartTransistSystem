@@ -1,10 +1,13 @@
 from celery import shared_task
 from django.utils import timezone
 from django.db import transaction
+import logging
 
 from .models import Booking, LinkedBooking, MissedConnectionEvent, TransactionalVoucher
 from domains.routing.eta import estimate_arrival
 from domains.tracking.redis_client import get_vehicle_position
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task
@@ -167,3 +170,364 @@ def create_transactional_voucher(missed_event, booking):
         expires_at=timezone.now() + timedelta(days=30),
     )
     return voucher
+
+
+@shared_task
+def monitor_transfer_bay():
+    """
+    Transfer Bay Monitoring: Watches commuters' ETA to transfer stops and
+    triggers the second leg seat lock at the right moment for linked trips.
+    
+    For linked bookings (Mode 3), this task:
+    1. Monitors first leg bookings with status 'pending_transfer'
+    2. Calculates ETA to transfer station using GPS
+    3. When ETA is within trigger window, books the second leg
+    4. Updates booking status from 'pending_transfer' to 'confirmed'
+    
+    This task runs every minute to monitor all pending transfer bookings.
+    """
+    from domains.routing.models import Stop
+    
+    # Get all bookings waiting in the transfer bay
+    pending_transfers = Booking.objects.filter(
+        status='pending_transfer'
+    ).select_related(
+        'trip__vehicle',
+        'trip__route',
+        'boarding_stop',
+        'alighting_stop'
+    )
+    
+    bookings_processed = 0
+    
+    for booking in pending_transfers:
+        # Get the linked booking record
+        linked_booking = LinkedBooking.objects.filter(
+            first_leg_booking=booking
+        ).select_related(
+            'second_leg_booking__trip',
+            'transfer_station'
+        ).first()
+        
+        if not linked_booking:
+            continue
+        
+        second_booking = linked_booking.second_leg_booking
+        transfer_station = linked_booking.transfer_station
+        
+        # Skip if second leg is already confirmed
+        if second_booking.status == 'confirmed':
+            booking.status = 'confirmed'
+            booking.save()
+            continue
+        
+        # Get the transfer stop for the first route
+        first_trip = booking.trip
+        transfer_stop = booking.alighting_stop  # For linked trips, alighting stop is transfer point
+        
+        if not transfer_stop:
+            continue
+        
+        # Calculate ETA of Bus 1 to transfer station
+        eta_data = estimate_arrival(first_trip, transfer_stop)
+        
+        if not eta_data:
+            continue
+        
+        bus1_eta_minutes = eta_data['eta_minutes']
+        
+        # Get Bus 2's scheduled departure time
+        second_trip = second_booking.trip
+        if not second_trip.departure_time:
+            continue
+        
+        # Calculate time until Bus 2 departure
+        time_until_departure = (second_trip.departure_time - timezone.now()).total_seconds() / 60
+        
+        if time_until_departure <= 0:
+            # Bus 2 has already departed - this is a missed connection
+            continue
+        
+        # Trigger window: When Bus 1 ETA is within 15 minutes of transfer station
+        # This gives enough time to secure the seat on Bus 2
+        trigger_window_minutes = 15
+        
+        if bus1_eta_minutes <= trigger_window_minutes:
+            # Time to book the second leg
+            with transaction.atomic():
+                # Check if second trip still has seats
+                if second_trip.available_seats <= 0:
+                    # No seats available - handle as missed connection
+                    linked_booking.status = 'missed_connection'
+                    linked_booking.save()
+                    booking.status = 'missed_delay'
+                    booking.save()
+                    
+                    # Create voucher for second leg
+                    missed_event = MissedConnectionEvent.objects.create(
+                        linked_booking=linked_booking,
+                        first_leg_trip=first_trip,
+                        second_leg_trip=second_trip,
+                        first_leg_eta_minutes=bus1_eta_minutes,
+                        second_leg_departure_buffer=time_until_departure,
+                    )
+                    create_transactional_voucher(missed_event, second_booking)
+                    continue
+                
+                # Book the second leg
+                second_booking.status = 'confirmed'
+                second_booking.confirmed_at = timezone.now()
+                second_booking.generate_ticket_codes()
+                second_booking.save()
+                
+                # Update first leg status
+                booking.status = 'confirmed'
+                booking.save()
+                
+                # Update linked booking status
+                linked_booking.status = 'transfer_complete'
+                linked_booking.save()
+                
+                bookings_processed += 1
+    
+    return f'Monitored {pending_transfers.count()} pending transfers, processed {bookings_processed} second leg bookings.'
+
+
+@shared_task
+def monitor_transfer_proximity():
+    """
+    Transfer Proximity Monitoring: Monitors LINK_LEG_1 bookings and triggers
+    automatic seat lock on LINK_LEG_2 when Bus A approaches the transfer station.
+    
+    For new multi-mode linked trips using booking_type and linked_booking fields:
+    1. Queries all LINK_LEG_1 bookings with status 'confirmed' or 'boarded' (active/in-transit)
+    2. Fetches live GPS coordinates of Bus A relative to pending_transfer_stop
+    3. Calculates distance/ETA to transfer station
+    4. If distance < transfer_trigger_km or ETA threshold reached:
+       - Fetches the linked LINK_LEG_2 booking
+       - Attempts to lock/confirm seat on Bus B
+       - If successful: transitions Leg 2 to CONFIRMED, broadcasts WebSocket update
+       - If Bus B full: logs failure, fires WebSocket alert for manual rerouting
+    
+    This task runs every 30 seconds via Celery Beat.
+    """
+    from domains.tracking.redis_client import publish_position_update
+    from django.contrib.gis.geos import Point
+    from django.contrib.gis.measure import D
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Get all active LINK_LEG_1 bookings (confirmed or boarded - in transit)
+    active_leg1_bookings = Booking.objects.filter(
+        booking_type=Booking.BookingType.LINK_LEG_1,
+        status__in=['confirmed', 'boarded']
+    ).select_related(
+        'trip__vehicle',
+        'trip__route',
+        'linked_booking__trip__vehicle',
+        'linked_booking__trip__route',
+        'pending_transfer_stop'
+    )
+    
+    bookings_processed = 0
+    failures_handled = 0
+    
+    for leg1_booking in active_leg1_bookings:
+        # Get the linked Leg 2 booking
+        leg2_booking = leg1_booking.linked_booking
+        
+        if not leg2_booking or leg2_booking.booking_type != Booking.BookingType.LINK_LEG_2:
+            continue
+        
+        # Skip if Leg 2 is already confirmed
+        if leg2_booking.status == 'confirmed':
+            continue
+        
+        # Get transfer station
+        transfer_station = leg2_booking.pending_transfer_stop
+        if not transfer_station:
+            logger.warning(f"Leg 1 booking {leg1_booking.id} has no pending_transfer_stop")
+            continue
+        
+        # Get Bus A (Leg 1) live position
+        leg1_trip = leg1_booking.trip
+        position = get_vehicle_position(str(leg1_trip.vehicle_id))
+        
+        if not position:
+            logger.warning(f"No GPS data for vehicle {leg1_trip.vehicle_id} on trip {leg1_trip.id}")
+            continue
+        
+        # Calculate distance from Bus A to transfer station
+        vehicle_point = Point(position['longitude'], position['latitude'], srid=4326)
+        
+        # Transform to metric SRID for accurate distance
+        distance_meters = vehicle_point.transform(3857, clone=True).distance(
+            transfer_station.location.transform(3857, clone=True)
+        )
+        distance_km = distance_meters / 1000
+        
+        # Get trigger threshold from booking (fallback to default 2.0 km)
+        trigger_km = leg2_booking.transfer_trigger_km
+        
+        # Check if within trigger distance
+        if distance_km <= trigger_km:
+            # Time to lock seat on Bus B (Leg 2)
+            with transaction.atomic():
+                leg2_trip = leg2_booking.trip
+                
+                # Check if Bus B still has available seats
+                if leg2_trip.available_seats <= 0:
+                    # Bus B is full - handle edge case
+                    logger.error(
+                        f"Bus B (trip {leg2_trip.id}) full when triggering transfer for "
+                        f"leg1_booking {leg1_booking.id}. Manual rerouting required."
+                    )
+                    
+                    # Update Leg 2 status to indicate failure
+                    leg2_booking.status = 'missed_delay'
+                    leg2_booking.save()
+                    
+                    # Fire WebSocket alert to user
+                    _broadcast_transfer_alert(
+                        leg1_booking.commuter.id,
+                        leg1_booking.id,
+                        leg2_booking.id,
+                        'no_seats_available',
+                        f'Transfer failed: Bus B is full. Please contact support for rerouting.'
+                    )
+                    
+                    failures_handled += 1
+                    continue
+                
+                # Lock seat on Bus B - confirm Leg 2 booking
+                leg2_booking.status = 'confirmed'
+                leg2_booking.fare_paid = leg2_trip.fare
+                leg2_booking.confirmed_at = timezone.now()
+                leg2_booking.generate_ticket_codes()
+                leg2_booking.save()
+                
+                # Broadcast real-time update to commuter via WebSocket
+                _broadcast_transfer_success(
+                    leg1_booking.commuter.id,
+                    leg1_booking.id,
+                    leg2_booking.id,
+                    leg2_booking.short_code,
+                    leg2_booking.qr_code_token
+                )
+                
+                bookings_processed += 1
+                logger.info(
+                    f"Successfully locked seat on Bus B (trip {leg2_trip.id}) for "
+                    f"leg2_booking {leg2_booking.id}. Distance to transfer: {distance_km:.2f}km"
+                )
+    
+    return (
+        f'Monitored {active_leg1_bookings.count()} active LINK_LEG_1 bookings, '
+        f'processed {bookings_processed} Leg 2 seat locks, '
+        f'handled {failures_handled} failures.'
+    )
+
+
+def _broadcast_transfer_success(user_id, leg1_booking_id, leg2_booking_id, short_code, qr_token):
+    """
+    Broadcasts a successful transfer seat lock to the commuter via WebSocket.
+    """
+    from channels.layers import get_channel_layer
+    import asyncio
+    import json
+    
+    channel_layer = get_channel_layer()
+    
+    async def send_notification():
+        await channel_layer.group_send(
+            f'user_{user_id}',
+            {
+                'type': 'transfer.success',
+                'leg1_booking_id': str(leg1_booking_id),
+                'leg2_booking_id': str(leg2_booking_id),
+                'short_code': short_code,
+                'qr_token': qr_token,
+                'message': 'Your transfer seat has been confirmed. Boarding pass ready.',
+                'timestamp': timezone.now().isoformat(),
+            }
+        )
+    
+    # Run async function in sync context
+    try:
+        asyncio.run(send_notification())
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to broadcast transfer success: {e}")
+
+
+def _broadcast_transfer_alert(user_id, leg1_booking_id, leg2_booking_id, alert_type, message):
+    """
+    Broadcasts a transfer failure alert to the commuter via WebSocket.
+    """
+    from channels.layers import get_channel_layer
+    import asyncio
+    
+    channel_layer = get_channel_layer()
+    
+    async def send_alert():
+        await channel_layer.group_send(
+            f'user_{user_id}',
+            {
+                'type': 'transfer.alert',
+                'leg1_booking_id': str(leg1_booking_id),
+                'leg2_booking_id': str(leg2_booking_id),
+                'alert_type': alert_type,
+                'message': message,
+                'timestamp': timezone.now().isoformat(),
+            }
+        )
+    
+    # Run async function in sync context
+    try:
+        asyncio.run(send_alert())
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to broadcast transfer alert: {e}")
+
+
+@shared_task
+def handle_bus_cancellation(cancelled_trip_id, reason='bus_cancelled'):
+    """
+    Celery task for handling automatic reassignment of bookings when buses are cancelled.
+    
+    This task is triggered when an operator cancels a scheduled bus run. It:
+    1. Queries all active CONFIRMED bookings associated with that bus
+    2. Focuses on RETURN_INWARD types and standard single trips
+    3. For each affected booking, searches for the next available scheduled bus on the same route
+    4. Executes reassignment with atomic locks to protect seat counts
+    5. Logs reassignment events in BookingReassignment for audit tracking
+    6. Triggers WebSocket broadcasts to affected commuters
+    7. Flags bookings as PENDING_MANUAL_REROUTE if no seats are available
+    8. Dispatches critical alerts to admin dashboard for manual intervention
+    
+    Args:
+        cancelled_trip_id: UUID of the cancelled trip
+        reason: Reason for cancellation (default: 'bus_cancelled')
+    
+    Returns:
+        dict with summary of reassignment results
+    """
+    from .services import BusCancellationService
+    
+    logger.info(f"Starting bus cancellation task trip {cancelled_trip_id}")
+    
+    try:
+        results = BusCancellationService.handle_bus_cancellation(cancelled_trip_id, reason)
+        logger.info(f"Bus cancellation task completed: {results}")
+        return results
+    except Exception as e:
+        logger.error(f"Bus cancellation task failed: {e}")
+        return {
+            'error': str(e),
+            'reassigned_count': 0,
+            'manual_reroute_count': 0,
+            'failed_count': 1
+        }

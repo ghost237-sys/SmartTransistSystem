@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getTrip } from '../../api/trips'
-import { createBooking } from '../../api/bookings'
+import { createBooking, createMultiModeBooking } from '../../api/bookings'
 import { PAYMENT_METHODS } from '../../constants/paymentMethods'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
@@ -60,23 +60,42 @@ export default function PaymentPage() {
     await new Promise(r => setTimeout(r, 1500))
 
     try {
-      const payload = {
-        trip: tripId,
-        phone_number: phone || '0712345678',
-        payment_method: selectedMethod,
+      let res
+      if (rideState?.bookingData) {
+        const payload = {
+          ...rideState.bookingData,
+          phone_number: phone || '0712345678',
+          payment_method: selectedMethod,
+          use_pass: false,
+        }
+        res = await createMultiModeBooking(payload)
+      } else {
+        const payload = {
+          trip: tripId,
+          phone_number: phone || '0712345678',
+          payment_method: selectedMethod,
+        }
+        if (rideState?.pickupStopId) payload.boarding_stop_id = rideState.pickupStopId
+        if (rideState?.alightingStopId) payload.alighting_stop_id = rideState.alightingStopId
+        res = await createBooking(payload)
       }
-      if (rideState?.pickupStopId) payload.boarding_stop_id = rideState.pickupStopId
-      if (rideState?.alightingStopId) payload.alighting_stop_id = rideState.alightingStopId
 
-      const res = await createBooking(payload)
+      const bookingId = res.data.booking_id || res.data.outbound_booking_id
 
-      navigate(`/commuter/booking/${res.data.booking_id}`, {
+      navigate(`/commuter/booking/${bookingId}`, {
         replace: true,
         state: {
           pickupStopName: rideState?.pickupStopName,
           alightingStopName: rideState?.alightingStopName,
           etaMinutes: rideState?.etaMinutes,
           paymentMethod: selected?.name,
+          isTwoWay: rideState?.isTwoWay,
+          returnTime: rideState?.returnTime,
+          isLinkedJourney: rideState?.isLinkedJourney,
+          linkedRouteId: rideState?.linkedRouteId,
+          firstLeg: rideState?.firstLeg,
+          secondLeg: rideState?.secondLeg,
+          transferStationName: rideState?.transferStationName,
         },
       })
     } catch (err) {
@@ -111,17 +130,25 @@ export default function PaymentPage() {
         <div className="text-center">
           <h2 className="text-xl font-bold text-ink">Processing payment</h2>
           <p className="text-ink-light text-sm mt-2">
-            Confirming KES {Number(trip?.fare).toLocaleString()} via {selected?.name}…
+            Confirming KES {Number(rideState?.totalFare ?? trip?.fare ?? 0).toLocaleString()} via {selected?.name}…
           </p>
         </div>
       </div>
     )
   }
 
+  const handleBack = () => {
+    if (rideState?.bookingData) {
+      navigate('/commuter')
+    } else {
+      navigate(`/commuter/book/${tripId}`, { state: rideState })
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <button
-        onClick={() => navigate(`/commuter/book/${tripId}`, { state: rideState })}
+        onClick={handleBack}
         className="flex items-center gap-2 text-sm text-ink-light hover:text-ink transition-colors"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -135,7 +162,7 @@ export default function PaymentPage() {
           Choose payment method
         </h1>
         <p className="text-ink-light text-sm mt-1">
-          Pay KES {Number(trip?.fare).toLocaleString()} for your seat
+          Pay KES {Number(rideState?.totalFare ?? trip?.fare ?? 0).toLocaleString()} for your seat
         </p>
       </div>
 

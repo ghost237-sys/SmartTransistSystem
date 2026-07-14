@@ -13,8 +13,10 @@ from .redis_client import set_vehicle_position
 from .serializers import PositionUpdateSerializer
 
 
+from rest_framework.permissions import IsAuthenticated
+
 class PositionUpdateView(APIView):
-    permission_classes = [IsDriver]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = PositionUpdateSerializer(data=request.data)
@@ -22,12 +24,29 @@ class PositionUpdateView(APIView):
         data = serializer.validated_data
 
         trip_id = data.get('trip_id')
+        is_demo = False
 
         if trip_id:
-            trip = Trip.all_objects.filter(id=trip_id, driver=request.user).first()
+            # For investor demo, we allow commuters to post simulated GPS updates in debug/demo mode
+            is_demo = (
+                request.user.is_authenticated and
+                request.user.role == 'commuter' and (
+                    request.user.username == 'investor_commuter' or
+                    request.user.username.startswith('commuter_')
+                )
+            )
+            
+            if is_demo:
+                trip = Trip.all_objects.filter(id=trip_id).first()
+                if trip and trip.status != 'active':
+                    trip.status = 'active'
+                    trip.save()
+            else:
+                trip = Trip.all_objects.filter(id=trip_id, driver=request.user).first()
+
             if trip is None:
                 return Response(
-                    {'detail': 'You are not assigned as the driver for this trip.'},
+                    {'detail': 'You are not authorized to post telemetry for this trip.'},
                     status=status.HTTP_403_FORBIDDEN,
                 )
             if trip.status != 'active':
@@ -68,5 +87,13 @@ class PositionUpdateView(APIView):
                 speed_kmh=data.get('speed_kmh'),
                 recorded_at=now.isoformat(),
             )
+            
+            # For immediate visual updates in investor demo, trigger transfer geofencing checks synchronously
+            if is_demo:
+                from domains.booking.tasks import monitor_transfer_proximity
+                try:
+                    monitor_transfer_proximity()
+                except Exception:
+                    pass
 
         return Response({'detail': 'Position recorded.'}, status=status.HTTP_201_CREATED)

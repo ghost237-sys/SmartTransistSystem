@@ -486,6 +486,11 @@ class FindLinkedJourneyView(APIView):
                     if time_until_second_departure < 0 or time_until_second_departure > 120:
                         continue
 
+                    # Get second trip position
+                    second_position = get_vehicle_position(str(second_trip.vehicle_id))
+                    if not second_position:
+                        continue
+
                     # Get second trip ETA to final destination
                     second_eta_data = estimate_arrival(second_trip, final_destination)
                     if not second_eta_data:
@@ -523,6 +528,9 @@ class FindLinkedJourneyView(APIView):
                             'pickup_stop_name': linked_route.second_route_stop.name,
                             'eta_minutes': second_eta_data['eta_minutes'],
                             'distance_km': second_eta_data['distance_km'],
+                            'vehicle_latitude': second_position['latitude'],
+                            'vehicle_longitude': second_position['longitude'],
+                            'speed_kmh': second_position.get('speed_kmh'),
                             'departure_time': second_trip.departure_time.isoformat() if second_trip.departure_time else None,
                         },
                         'transfer_station_name': linked_route.transfer_station.name,

@@ -10,3 +10,4 @@ export const recordCashPayment = (data) => client.post('/api/bookings/cash-payme
 export const getTripManifest = async (tripId) => (await client.get(`/api/bookings/trips/${tripId}/manifest/`)).data
 export const departTrip = (tripId) => client.post(`/api/bookings/trips/${tripId}/depart/`)
 export const completeTrip = (tripId) => client.post(`/api/bookings/trips/${tripId}/complete/`)
+export const createMultiModeBooking = (data) => client.post('/api/bookings/multi-mode/', data)

@@ -23,8 +23,8 @@ from django.contrib.auth.hashers import make_password
 from domains.tenants.models import Tenant
 from domains.accounts.models import User
 from domains.fleet.models import Fleet, Vehicle
-from domains.routing.models import Route, Stop, Trip
-from domains.booking.models import Booking
+from domains.routing.models import Route, Stop, Trip, TransferStation, LinkedRoute
+from domains.booking.models import Booking, LinkedBooking
 from domains.parcels.models import Parcel, ParcelScanEvent
 from domains.payments.models import Payment
 from domains.parcels.utils import generate_tracking_code, generate_qr_token
@@ -139,7 +139,7 @@ demo_usernames = [
     'admin', 'supermetro_owner',
     'driver_th047', 'driver_th112', 'driver_ng018', 'driver_th203', 'driver_ki034',
     'conductor_th047', 'conductor_th112', 'conductor_ng018', 'conductor_th203', 'conductor_ki034',
-    'commuter_alice', 'commuter_bob', 'commuter_carol',
+    'commuter_alice', 'commuter_bob', 'commuter_carol', 'investor_commuter',
 ]
 User.objects.filter(username__in=demo_usernames).delete()
 
@@ -206,12 +206,14 @@ fleet_owner = get_or_create_user('supermetro_owner', User.Role.FLEET_OWNER, tena
 commuter1   = get_or_create_user('commuter_alice', User.Role.COMMUTER, first_name='Alice', last_name='Mwangi')
 commuter2   = get_or_create_user('commuter_bob', User.Role.COMMUTER, first_name='Bob', last_name='Ochieng')
 commuter3   = get_or_create_user('commuter_carol', User.Role.COMMUTER, first_name='Carol', last_name='Wambui')
+commuter4   = get_or_create_user('investor_commuter', User.Role.COMMUTER, first_name='Investor', last_name='Commuter')
+commuter5   = get_or_create_user('commuter_dennis', User.Role.COMMUTER, first_name='Dennis', last_name='Karanja')
 
 super_admin.is_superuser = True
 super_admin.is_staff = True
 super_admin.save()
 
-print('✓ Users: fleet owner + 3 commuters (crew created per bus below)')
+print('✓ Users: fleet owner + 4 commuters (crew created per bus below)')
 
 # 4. Fleet & Vehicles
 fleet, _ = Fleet.objects.get_or_create(
@@ -366,6 +368,62 @@ stop_cbd = thika_stops[-1]
 
 print(f'✓ Route: {route_nm.name} with {route_nm.stops.count()} stops')
 
+# Create reverse route: Nairobi - Thika
+route_nt, _ = Route.objects.get_or_create(
+    tenant=tenant,
+    name='Nairobi - Thika',
+    defaults={
+        'path': LineString([
+            (36.8219, -1.2921),  # Nairobi CBD
+            (36.8450, -1.2790),  # Pangani
+            (36.8670, -1.2470),  # Allsops / Garden City
+            (36.8780, -1.2275),  # Alsops
+            (36.8845, -1.2255),  # KCA University
+            (36.8914, -1.2219),  # Roysambu
+            (36.8985, -1.2175),  # Kasarani
+            (36.9120, -1.2145),  # Kahawa Sukari
+            (36.9281, -1.2092),  # Githurai 45
+            (36.9450, -1.1780),  # Mwiki
+            (36.9616, -1.1469),  # Ruiru Stage
+            (37.0146, -1.0935),  # Kenyatta University
+            (37.0693, -1.0332),  # Thika Town Stage
+        ], srid=4326),
+        'distance_km': 47,
+        'estimated_duration_minutes': 60,
+        'is_active': True,
+    }
+)
+
+# Reverse stops for Nairobi - Thika route
+nairobi_thika_stop_defs = [
+    ('Nairobi CBD', 36.8219, -1.2921),
+    ('Pangani', 36.8450, -1.2790),
+    ('Allsops / Garden City', 36.8670, -1.2470),
+    ('Alsops', 36.8780, -1.2275),
+    ('KCA University', 36.8845, -1.2255),
+    ('Roysambu', 36.8914, -1.2219),
+    ('Kasarani', 36.8985, -1.2175),
+    ('Kahawa Sukari', 36.9120, -1.2145),
+    ('Githurai 45', 36.9281, -1.2092),
+    ('Mwiki', 36.9450, -1.1780),
+    ('Ruiru Stage', 36.9616, -1.1469),
+    ('Kenyatta University', 37.0146, -1.0935),
+    ('Thika Town Stage', 37.0693, -1.0332),
+]
+nairobi_thika_stops = []
+for seq, (name, lng, lat) in enumerate(nairobi_thika_stop_defs):
+    stop, _ = Stop.objects.update_or_create(
+        route=route_nt, sequence=seq,
+        defaults={'name': name, 'location': Point(lng, lat, srid=4326)},
+    )
+    nairobi_thika_stops.append(stop)
+
+stop_nairobi_cbd = nairobi_thika_stops[0]
+stop_nairobi_githurai = nairobi_thika_stops[8]
+stop_nairobi_thika = nairobi_thika_stops[-1]
+
+print(f'✓ Route: {route_nt.name} with {route_nt.stops.count()} stops')
+
 route_ngong, _ = Route.objects.get_or_create(
     tenant=tenant,
     name='Ngong - Nairobi',
@@ -402,6 +460,7 @@ for seq, (name, lng, lat) in enumerate(ngong_stop_defs):
     ngong_stops.append(stop)
 stop_ngong_karen = ngong_stops[2]
 stop_ngong_cbd = ngong_stops[-1]
+stop_ngong_stage = ngong_stops[0]
 
 route_eastleigh, _ = Route.objects.get_or_create(
     tenant=tenant,
@@ -561,13 +620,285 @@ for vehicle, route, fare in active_trip_defs:
     )
     live_trips.append(trip)
 
+# Create return trips on Nairobi - Thika route for return bookings
+return_trip_defs = [
+    (vehicle1, route_nt, Decimal('150')),
+    (vehicle2, route_nt, Decimal('150')),
+]
+
+return_trips = []
+for vehicle, route, fare in return_trip_defs:
+    trip = Trip.objects.create(
+        tenant=tenant,
+        route=route,
+        vehicle=vehicle,
+        driver=vehicle.assigned_driver,
+        conductor=vehicle.assigned_conductor,
+        departure_time=now + timedelta(hours=2),
+        total_seats=vehicle.capacity,
+        fare=fare,
+        status='active',
+    )
+    return_trips.append(trip)
+
 trip1, trip2, trip3, trip4 = live_trips
 
 active_count = Trip.objects.filter(tenant=tenant, status='active').count()
 print(f'✓ Demo trips: {Trip.objects.filter(tenant=tenant).count()} total ({active_count} active, {historical_trips} completed)')
 
-# 8. No pre-seeded bookings — use a commuter login to book end-to-end
-print('✓ Bookings: none pre-seeded (log in as commuter_alice to demo the full flow)')
+# 8. Multi-mode bookings with distribution: 60% SINGLE, 20% RETURN, 20% LINK
+print('✓ Bookings: generating multi-mode demo bookings...')
+
+def create_single_booking(tenant, trip, commuter, boarding_stop, alighting_stop):
+    """Create a single trip booking."""
+    booking = Booking.objects.create(
+        tenant=tenant,
+        trip=trip,
+        commuter=commuter,
+        booking_type=Booking.BookingType.SINGLE,
+        status='confirmed',
+        fare_paid=trip.fare,
+        boarding_stop=boarding_stop,
+        alighting_stop=alighting_stop,
+        confirmed_at=timezone.now(),
+    )
+    booking.generate_ticket_codes()
+    booking.save()
+    return booking
+
+def create_return_booking(tenant, outbound_trip, return_trip, commuter, outbound_boarding, outbound_alighting, return_boarding, return_alighting):
+    """Create an immediate return trip with RETURN_OUTWARD and RETURN_INWARD bookings."""
+    # Create outbound booking
+    outbound_booking = Booking.objects.create(
+        tenant=tenant,
+        trip=outbound_trip,
+        commuter=commuter,
+        booking_type=Booking.BookingType.RETURN_OUTWARD,
+        status='confirmed',
+        fare_paid=outbound_trip.fare,
+        boarding_stop=outbound_boarding,
+        alighting_stop=outbound_alighting,
+        confirmed_at=timezone.now(),
+    )
+    outbound_booking.generate_ticket_codes()
+    outbound_booking.save()
+    
+    # Create return booking
+    return_booking = Booking.objects.create(
+        tenant=tenant,
+        trip=return_trip,
+        commuter=commuter,
+        booking_type=Booking.BookingType.RETURN_INWARD,
+        status='confirmed',
+        fare_paid=return_trip.fare,
+        boarding_stop=return_boarding,
+        alighting_stop=return_alighting,
+        confirmed_at=timezone.now(),
+        linked_booking=outbound_booking,
+    )
+    return_booking.generate_ticket_codes()
+    return_booking.save()
+    
+    # Link them together
+    outbound_booking.linked_booking = return_booking
+    outbound_booking.save()
+    
+    return outbound_booking, return_booking
+
+def create_link_booking(tenant, first_trip, second_trip, commuter, first_boarding, first_alighting, second_boarding, second_alighting, transfer_station):
+    """Create a linked trip with LINK_LEG_1 and LINK_LEG_2 bookings."""
+    # Create first leg booking
+    first_leg = Booking.objects.create(
+        tenant=tenant,
+        trip=first_trip,
+        commuter=commuter,
+        booking_type=Booking.BookingType.LINK_LEG_1,
+        status='confirmed',
+        fare_paid=first_trip.fare,
+        boarding_stop=first_boarding,
+        alighting_stop=first_alighting,
+        confirmed_at=timezone.now(),
+        pending_transfer_stop=transfer_station,
+    )
+    first_leg.generate_ticket_codes()
+    first_leg.save()
+    
+    # Create second leg booking (pending transfer)
+    second_leg = Booking.objects.create(
+        tenant=tenant,
+        trip=second_trip,
+        commuter=commuter,
+        booking_type=Booking.BookingType.LINK_LEG_2,
+        status='pending_transfer',
+        fare_paid=second_trip.fare,
+        boarding_stop=second_boarding,
+        alighting_stop=second_alighting,
+        confirmed_at=None,
+        linked_booking=first_leg,
+        pending_transfer_stop=transfer_station,
+    )
+    second_leg.save()
+    
+    # Link them together
+    first_leg.linked_booking = second_leg
+    first_leg.save()
+    
+    # Create LinkedBooking record
+    linked_booking = LinkedBooking.objects.create(
+        first_leg_booking=first_leg,
+        second_leg_booking=second_leg,
+        transfer_station=transfer_station,
+        status='active',
+    )
+    
+    return first_leg, second_leg, linked_booking
+
+# Use the return_trips created earlier for return bookings
+additional_trips = return_trips
+
+# Create transfer station for link trips
+transfer_station, _ = TransferStation.objects.get_or_create(
+    name='Githurai Transfer Hub',
+    defaults={
+        'location': Point(36.9450, -1.1780, srid=4326),
+        'buffer_minutes': 5,
+        'is_active': True,
+    }
+)
+
+# Create linked route for link trips
+linked_route, _ = LinkedRoute.objects.get_or_create(
+    first_route=route_nm,
+    second_route=route_eastleigh,
+    transfer_station=transfer_station,
+    defaults={
+        'first_route_stop': stop_githurai,
+        'second_route_stop': stop_alsops,
+        'is_active': True,
+    }
+)
+
+# Create CBD Transfer Hub
+transfer_station_cbd, _ = TransferStation.objects.get_or_create(
+    name='Nairobi CBD Transfer Hub',
+    defaults={
+        'location': Point(36.8219, -1.2921, srid=4326),
+        'buffer_minutes': 10,
+        'is_active': True,
+    }
+)
+
+# Resolve CBD stops
+stop_eastleigh_cbd = Stop.objects.get(route=route_eastleigh, name='Nairobi CBD')
+
+# Link 1: Kikuyu -> Nairobi -> Thika
+LinkedRoute.objects.get_or_create(
+    first_route=route_kikuyu,
+    second_route=route_nt,
+    transfer_station=transfer_station_cbd,
+    defaults={
+        'first_route_stop': stop_kikuyu_cbd,
+        'second_route_stop': stop_nairobi_cbd,
+        'is_active': True,
+    }
+)
+
+# Link 2: Ngong -> Nairobi -> Thika
+LinkedRoute.objects.get_or_create(
+    first_route=route_ngong,
+    second_route=route_nt,
+    transfer_station=transfer_station_cbd,
+    defaults={
+        'first_route_stop': stop_ngong_cbd,
+        'second_route_stop': stop_nairobi_cbd,
+        'is_active': True,
+    }
+)
+
+# Link 3: Eastleigh -> Nairobi -> Thika
+LinkedRoute.objects.get_or_create(
+    first_route=route_eastleigh,
+    second_route=route_nt,
+    transfer_station=transfer_station_cbd,
+    defaults={
+        'first_route_stop': stop_eastleigh_cbd,
+        'second_route_stop': stop_nairobi_cbd,
+        'is_active': True,
+    }
+)
+
+# Create second leg trips for link bookings
+link_second_trips = []
+for vehicle in [vehicle2, vehicle3]:
+    link_trip = Trip.objects.create(
+        tenant=tenant,
+        route=route_eastleigh,
+        vehicle=vehicle,
+        driver=vehicle.assigned_driver,
+        conductor=vehicle.assigned_conductor,
+        departure_time=now + timedelta(hours=1, minutes=30),
+        total_seats=vehicle.capacity,
+        fare=Decimal('80'),
+        status='active',
+    )
+    link_second_trips.append(link_trip)
+
+# Generate bookings with distribution: 60% SINGLE, 20% RETURN, 20% LINK
+commuters = [commuter1, commuter2, commuter3]
+total_bookings = 30  # Total bookings to generate
+single_count = int(total_bookings * 0.6)  # 18
+return_count = int(total_bookings * 0.2)  # 6
+link_count = int(total_bookings * 0.2)  # 6
+
+booking_counter = 0
+
+# Generate SINGLE bookings (60%)
+for i in range(single_count):
+    commuter = commuters[i % len(commuters)]
+    trip = live_trips[i % len(live_trips)]
+    boarding_stop = trip.route.stops.first()
+    alighting_stop = trip.route.stops.last()
+    
+    create_single_booking(tenant, trip, commuter, boarding_stop, alighting_stop)
+    booking_counter += 1
+
+# Generate RETURN bookings (20%)
+for i in range(return_count):
+    commuter = commuters[i % len(commuters)]
+    outbound_trip = live_trips[i % len(live_trips)]
+    return_trip = additional_trips[i % len(additional_trips)]
+    
+    outbound_boarding = outbound_trip.route.stops.first()
+    outbound_alighting = outbound_trip.route.stops.last()
+    return_boarding = outbound_alighting  # Return from where they alighted
+    return_alighting = outbound_boarding  # Return to where they started
+    
+    create_return_booking(
+        tenant, outbound_trip, return_trip, commuter,
+        outbound_boarding, outbound_alighting, return_boarding, return_alighting
+    )
+    booking_counter += 2  # Two bookings per return trip
+
+# Generate LINK bookings (20%)
+for i in range(link_count):
+    commuter = commuters[i % len(commuters)]
+    first_trip = live_trips[i % len(live_trips)]
+    second_trip = link_second_trips[i % len(link_second_trips)]
+    
+    first_boarding = first_trip.route.stops.first()
+    first_alighting = stop_githurai  # Transfer at Githurai
+    second_boarding = stop_alsops  # Board at Allsops
+    second_alighting = stop_cbd  # Final destination
+    
+    # Use the transfer station for pending_transfer_stop
+    create_link_booking(
+        tenant, first_trip, second_trip, commuter,
+        first_boarding, first_alighting, second_boarding, second_alighting,
+        transfer_station  # Use the transfer station
+    )
+    booking_counter += 2  # Two bookings per link trip
+
+print(f'✓ Bookings: {booking_counter} total ({single_count} single, {return_count*2} return legs, {link_count*2} link legs)')
 
 # 9. Parcel in transit
 parcel, created = Parcel.objects.get_or_create(
@@ -610,11 +941,14 @@ def assign_demo_location(user, stop, route_name):
 assign_demo_location(commuter1, stop_thika, route_nm.name)
 assign_demo_location(commuter2, stop_ngong_karen, route_ngong.name)
 assign_demo_location(commuter3, stop_kikuyu, route_kikuyu.name)
+assign_demo_location(commuter4, stop_thika, route_nm.name)
+assign_demo_location(commuter5, stop_ngong_stage, route_ngong.name)
 
 print('✓ Demo commuter locations:')
-print(f'  commuter_alice → {commuter1.demo_location_label} (all Thika Rd stops available as destinations)')
-print(f'  commuter_bob   → {commuter2.demo_location_label}')
-print(f'  commuter_carol → {commuter3.demo_location_label}')
+print(f'  commuter_alice   → {commuter1.demo_location_label} (all Thika Rd stops available as destinations)')
+print(f'  commuter_bob     → {commuter2.demo_location_label}')
+print(f'  commuter_carol   → {commuter3.demo_location_label}')
+print(f'  commuter_dennis  → {commuter5.demo_location_label}')
 
 from domains.fleet.analytics import get_fleet_analytics
 

@@ -89,6 +89,16 @@ export default function LoginPage() {
               Sign in
             </Button>
           </form>
+
+          <div className="text-center mt-6 text-sm text-ink-light">
+            Do not have an account?{' '}
+            <button
+              onClick={() => navigate('/register')}
+              className="text-green-deep hover:underline font-semibold focus:outline-none"
+            >
+              Sign Up
+            </button>
+          </div>
         </div>
 
         <p className="text-center text-xs text-ink-light mt-6">

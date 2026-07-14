@@ -28,6 +28,7 @@ export default function FleetLayout() {
             { to: '/fleet/drivers', label: 'Drivers' },
             { to: '/fleet/conductors', label: 'Conductors' },
             { to: '/fleet/routes', label: 'Routes' },
+            { to: '/fleet/passes', label: 'Subscription Tiers' },
             { to: '/fleet/live', label: 'Live Map' },
             { to: '/fleet/analytics', label: 'Analytics' },
             { to: '/fleet/parcels', label: 'Parcels' },

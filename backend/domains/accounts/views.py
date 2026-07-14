@@ -24,7 +24,43 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        return Response({'detail': 'Use staff management to create fleet accounts.'}, status=405)
+        username = request.data.get('username')
+        password = request.data.get('password')
+        first_name = request.data.get('first_name', '')
+        last_name = request.data.get('last_name', '')
+        phone_number = request.data.get('phone_number', '')
+
+        if not username or not password:
+            return Response(
+                {'detail': 'Username and password are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from django.db import IntegrityError
+        try:
+            user = User.objects.create_user(
+                username=username,
+                password=password,
+                first_name=first_name,
+                last_name=last_name,
+                role=User.Role.COMMUTER,
+                phone_number=phone_number
+            )
+            # Default demo location at Nairobi CBD
+            user.demo_latitude = -1.2921
+            user.demo_longitude = 36.8219
+            user.demo_location_label = 'Nairobi CBD'
+            user.save()
+
+            return Response(
+                {'message': 'Registration successful. Please log in.'},
+                status=status.HTTP_201_CREATED
+            )
+        except IntegrityError:
+            return Response(
+                {'detail': 'Username already exists.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class StaffViewSet(viewsets.ModelViewSet):

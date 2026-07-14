@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getBooking, getBookingPickupStatus } from '../../api/bookings'
 import { getTripStops } from '../../api/trips'
+import { postPosition } from '../../api/telemetry'
 import { formatBusLabel } from '../../utils/busLabel'
 import MapView from '../../components/ui/MapView'
 import Card from '../../components/ui/Card'
@@ -20,11 +21,36 @@ export default function BookingConfirmedPage() {
   const { state: pageState } = useLocation()
   const wsRef = useRef(null)
   const [livePosition, setLivePosition] = useState(null)
+  const [pollInterval, setPollInterval] = useState(false)
+
+  // Simulation states
+  const [activeSimLeg, setActiveSimLeg] = useState('leg1')
+  const [isSimulating, setIsSimulating] = useState(false)
+  const [simStep, setSimStep] = useState(0)
+  const [simSpeed, setSimSpeed] = useState(2) // Default 2x speed
 
   const { data: booking, isLoading: loadingBooking } = useQuery({
     queryKey: ['booking', bookingId],
     queryFn: () => getBooking(bookingId),
+    refetchInterval: pollInterval,
   })
+
+  // Poll booking details if transfer is pending, so it confirms in real time
+  useEffect(() => {
+    if (booking?.linked_booking_details?.status === 'pending_transfer') {
+      setPollInterval(3000)
+    } else {
+      setPollInterval(false)
+    }
+  }, [booking])
+
+  const targetTripId = activeSimLeg === 'leg1'
+    ? (booking?.trip_details?.id || booking?.trip)
+    : booking?.linked_booking_details?.trip_details?.id
+
+  const targetVehicleId = activeSimLeg === 'leg1'
+    ? booking?.trip_details?.vehicle_id
+    : booking?.linked_booking_details?.trip_details?.vehicle_id
 
   const tripId = booking?.trip_details?.id || booking?.trip
 
@@ -36,15 +62,16 @@ export default function BookingConfirmedPage() {
   })
 
   const { data: stops } = useQuery({
-    queryKey: ['trip-stops', tripId],
-    queryFn: async () => (await getTripStops(tripId)).data,
-    enabled: !!tripId,
+    queryKey: ['trip-stops', targetTripId],
+    queryFn: async () => (await getTripStops(targetTripId)).data,
+    enabled: !!targetTripId,
   })
 
+  // WebSocket connects to the active tracking trip (which switches when targetTripId switches)
   useEffect(() => {
-    if (!tripId || booking?.status !== 'confirmed') return undefined
+    if (!targetTripId || booking?.status !== 'confirmed') return undefined
 
-    const ws = new WebSocket(`${getWsBase()}/ws/trip/${tripId}/tracking/`)
+    const ws = new WebSocket(`${getWsBase()}/ws/trip/${targetTripId}/tracking/`)
     wsRef.current = ws
 
     ws.onmessage = (event) => {
@@ -58,7 +85,95 @@ export default function BookingConfirmedPage() {
     }
 
     return () => ws.close()
-  }, [tripId, booking?.status, refetchEta])
+  }, [targetTripId, booking?.status, refetchEta])
+
+  // Generate interpolated coordinates between route stops
+  const simPoints = useMemo(() => {
+    if (!stops || stops.length === 0) return []
+    const sortedStops = [...stops].sort((a, b) => a.sequence - b.sequence)
+    const stepsPerLeg = 20
+    const points = []
+
+    for (let i = 0; i < sortedStops.length - 1; i++) {
+      const start = sortedStops[i]
+      const end = sortedStops[i + 1]
+      for (let step = 0; step < stepsPerLeg; step++) {
+        const pct = step / stepsPerLeg
+        points.push({
+          latitude: start.latitude + (end.latitude - start.latitude) * pct,
+          longitude: start.longitude + (end.longitude - start.longitude) * pct,
+          speed_kmh: 40 + Math.random() * 15,
+          stopName: start.name,
+        })
+      }
+    }
+
+    const lastStop = sortedStops[sortedStops.length - 1]
+    points.push({
+      latitude: lastStop.latitude,
+      longitude: lastStop.longitude,
+      speed_kmh: 0,
+      stopName: lastStop.name,
+    })
+
+    return points
+  }, [stops])
+
+  // Simulation execution loop
+  useEffect(() => {
+    if (!isSimulating || simPoints.length === 0) return undefined
+
+    const intervalTime = 3000 / simSpeed
+
+    const runStep = async () => {
+      setSimStep(prevStep => {
+        const nextStep = prevStep + 1
+        if (nextStep >= simPoints.length) {
+          setIsSimulating(false)
+          return prevStep
+        }
+
+        const point = simPoints[nextStep]
+        postPosition({
+          vehicle_id: targetVehicleId,
+          trip_id: targetTripId,
+          latitude: point.latitude,
+          longitude: point.longitude,
+          speed_kmh: point.speed_kmh,
+        }).catch(err => {
+          console.error('Error posting simulated position:', err)
+        })
+
+        return nextStep
+      })
+    }
+
+    const intervalId = setInterval(runStep, intervalTime)
+    return () => clearInterval(intervalId)
+  }, [isSimulating, simPoints, simSpeed, targetTripId, targetVehicleId])
+
+  const startSim = () => {
+    if (simStep < simPoints.length) {
+      const point = simPoints[simStep]
+      postPosition({
+        vehicle_id: targetVehicleId,
+        trip_id: targetTripId,
+        latitude: point.latitude,
+        longitude: point.longitude,
+        speed_kmh: point.speed_kmh,
+      }).catch(() => {})
+    }
+    setIsSimulating(true)
+  }
+
+  const stopSim = () => {
+    setIsSimulating(false)
+  }
+
+  const resetSim = () => {
+    setIsSimulating(false)
+    setSimStep(0)
+  }
 
   const vehiclePosition = livePosition || (pickupStatus?.vehicle_latitude ? {
     latitude: pickupStatus.vehicle_latitude,
@@ -103,6 +218,32 @@ export default function BookingConfirmedPage() {
           </p>
         )}
       </div>
+
+      {/* Return Commute Alert Banner */}
+      {(booking?.booking_type === 'return_outward' || pageState?.isTwoWay) && (
+        <Card className="border-blue-200 bg-blue-50/40 p-4 flex gap-3 items-start">
+          <span className="text-xl">📅</span>
+          <div>
+            <h4 className="font-bold text-blue-950 text-sm">Return Commute Booked</h4>
+            <p className="text-xs text-blue-700 mt-1">
+              Your return bus is scheduled and confirmed. It will be available at your return time ({pageState?.returnTime || 'the selected return time'}). We will notify you once it departs.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {/* Transfer Journey Alert Banner */}
+      {(booking?.booking_type === 'link_leg_1' || pageState?.isLinkedJourney) && (
+        <Card className="border-purple-200 bg-purple-50/40 p-4 flex gap-3 items-start">
+          <span className="text-xl">🔗</span>
+          <div>
+            <h4 className="font-bold text-purple-950 text-sm">Transfer Journey Booked</h4>
+            <p className="text-xs text-purple-700 mt-1">
+              Your transfer seat at <strong className="text-purple-900">{booking?.linked_booking_details?.boarding_stop_name || pageState?.transferStationName || 'the transfer hub'}</strong> is secured. The QR code activates automatically when your outbound bus approaches the station.
+            </p>
+          </div>
+        </Card>
+      )}
 
       {/* ETA hero */}
       <Card className="text-center py-8 bg-gradient-to-b from-green-pale to-white border-green-200">
@@ -161,17 +302,64 @@ export default function BookingConfirmedPage() {
         </div>
       </Card>
 
-      {booking?.status === 'confirmed' && (
-        <TicketDisplay
-          shortCode={booking.short_code}
-          qrCodeToken={booking.qr_code_token}
-          status={booking.status}
-          routeName={booking.trip_details?.route_name}
-          boardingStop={boardingStopName}
-          alightingStop={alightingStopName}
-          farePaid={booking.fare_paid}
-        />
-      )}
+
+
+      {/* Tickets Display */}
+      <div className="flex flex-col gap-4">
+        {/* Main Ticket */}
+        <div className="relative">
+          {booking?.linked_booking_details && (
+            <div className="absolute -top-3 left-4 bg-green-deep text-white text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full z-10">
+              {booking.booking_type === 'link_leg_1' ? 'Leg 1: Outbound' : booking.booking_type === 'return_outward' ? 'Outbound Commute' : 'Outbound'}
+            </div>
+          )}
+          {booking?.status === 'confirmed' && (
+            <TicketDisplay
+              shortCode={booking.short_code}
+              qrCodeToken={booking.qr_code_token}
+              status={booking.status}
+              routeName={booking.trip_details?.route_name}
+              boardingStop={boardingStopName}
+              alightingStop={alightingStopName}
+              farePaid={booking.fare_paid}
+            />
+          )}
+        </div>
+
+        {/* Linked Ticket / Return Ticket / Leg 2 */}
+        {booking?.linked_booking_details && (
+          <div className="relative mt-2">
+            <div className={`absolute -top-3 left-4 text-white text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full z-10 ${
+              booking.booking_type.startsWith('link') ? 'bg-purple-600' : 'bg-blue-600'
+            }`}>
+              {booking.booking_type === 'link_leg_1' ? 'Leg 2: Transfer' : 'Return Commute'}
+            </div>
+            {booking.linked_booking_details.status === 'confirmed' ? (
+              <TicketDisplay
+                shortCode={booking.linked_booking_details.short_code}
+                qrCodeToken={booking.linked_booking_details.qr_code_token}
+                status={booking.linked_booking_details.status}
+                routeName={booking.linked_booking_details.trip_details?.route_name}
+                boardingStop={booking.linked_booking_details.boarding_stop_name}
+                alightingStop={booking.linked_booking_details.alighting_stop_name}
+                farePaid={booking.linked_booking_details.fare_paid}
+              />
+            ) : (
+              <Card className="border-dashed border-2 border-purple-200 bg-purple-50/30 p-6 text-center">
+                <div className="text-2xl mb-1">⏳</div>
+                <h4 className="font-semibold text-purple-950 text-sm">Transfer Seat Held in Pending Bay</h4>
+                <p className="text-xs text-purple-700 mt-1 max-w-md mx-auto">
+                  Your seat on {booking.linked_booking_details.trip_details?.route_name} is reserved. The ticket QR code activates automatically when your current bus approaches the transfer station.
+                </p>
+                <div className="mt-3 flex items-center justify-center gap-1 text-[11px] text-purple-600 bg-white border border-purple-100 rounded-lg px-2.5 py-1 w-fit mx-auto">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping inline-block mr-1" />
+                  Seat lock pending geofence breach (2.0 km threshold)
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="flex gap-3">
         <Button variant="secondary" className="flex-1" onClick={() => navigate('/commuter')}>

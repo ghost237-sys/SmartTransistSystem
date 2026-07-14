@@ -3,16 +3,18 @@ import { useAuth } from './auth/AuthContext'
 import { RequireAuth } from './auth/RequireAuth'
 
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import UnauthorizedPage from './pages/UnauthorizedPage'
 
 // Commuter pages
 import CommuterLayout from './layouts/CommuterLayout'
-import RideSearchPage from './pages/commuter/RideSearchPage'
+import BookingSearchPage from './pages/commuter/BookingSearchPage'
 import BookingPage from './pages/commuter/BookingPage'
 import PaymentPage from './pages/commuter/PaymentPage'
 import BookingConfirmedPage from './pages/commuter/BookingConfirmedPage'
 import TrackingPage from './pages/commuter/TrackingPage'
 import MyTicketsPage from './pages/commuter/MyTicketsPage'
+import MyCommuterPassPage from './pages/commuter/MyCommuterPassPage'
 
 // Fleet owner pages
 import FleetLayout from './layouts/FleetLayout'
@@ -24,6 +26,7 @@ import VehiclesPage from './pages/fleet/VehiclesPage'
 import DriversPage from './pages/fleet/DriversPage'
 import ConductorsPage from './pages/fleet/ConductorsPage'
 import RoutesPage from './pages/fleet/RoutesPage'
+import PassTiersManagementPage from './pages/fleet/PassTiersManagementPage'
 
 // Conductor pages
 import ConductorLayout from './layouts/ConductorLayout'
@@ -54,6 +57,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       <Route path="/" element={<RoleRedirect />} />
 
@@ -63,12 +67,13 @@ export default function App() {
           <CommuterLayout />
         </RequireAuth>
       }>
-        <Route index element={<RideSearchPage />} />
+        <Route index element={<BookingSearchPage />} />
         <Route path="book/:tripId" element={<BookingPage />} />
         <Route path="pay/:tripId" element={<PaymentPage />} />
         <Route path="booking/:bookingId" element={<BookingConfirmedPage />} />
         <Route path="track/:tripId" element={<TrackingPage />} />
         <Route path="tickets" element={<MyTicketsPage />} />
+        <Route path="pass" element={<MyCommuterPassPage />} />
       </Route>
 
       {/* Fleet owner routes */}
@@ -85,6 +90,7 @@ export default function App() {
         <Route path="drivers" element={<DriversPage />} />
         <Route path="conductors" element={<ConductorsPage />} />
         <Route path="routes" element={<RoutesPage />} />
+        <Route path="passes" element={<PassTiersManagementPage />} />
       </Route>
 
       {/* Conductor routes */}

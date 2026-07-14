@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/routing/', include('domains.routing.urls')),
     path('api/bookings/', include('domains.booking.urls')),
     path('api/payments/', include('domains.payments.urls')),
+    path('api/passes/', include('domains.passes.urls')),
     path('api/telemetry/', include('domains.tracking.urls')),
     path('api/parcels/', include('domains.parcels.urls')),
 ]

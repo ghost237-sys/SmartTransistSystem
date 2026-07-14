@@ -71,6 +71,15 @@ services:
       redis:
         condition: service_healthy
 
+  gps_simulation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: transit_gps_simulation
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+
 volumes:
   postgres_data:
 

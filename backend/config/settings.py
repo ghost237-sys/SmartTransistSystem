@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'domains.booking',
     'domains.tracking',
     'domains.payments',
+    'domains.passes',
     'domains.notifications',
     'domains.parcels',
     'domains.stage_queue',
@@ -244,6 +245,26 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+
+# Celery Beat Schedule
+CELERY_BEAT_SCHEDULE = {
+    'expire-stale-bookings': {
+        'task': 'domains.booking.tasks.expire_stale_bookings',
+        'schedule': 300.0,  # Run every 5 minutes
+    },
+    'monitor-linked-connections': {
+        'task': 'domains.booking.tasks.monitor_linked_connections',
+        'schedule': 60.0,  # Run every minute
+    },
+    'monitor-transfer-bay': {
+        'task': 'domains.booking.tasks.monitor_transfer_bay',
+        'schedule': 60.0,  # Run every minute
+    },
+    'monitor-transfer-proximity': {
+        'task': 'domains.booking.tasks.monitor_transfer_proximity',
+        'schedule': 30.0,  # Run every 30 seconds
+    },
+}
 
 
 from datetime import timedelta

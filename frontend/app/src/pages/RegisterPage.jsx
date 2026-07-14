@@ -1,153 +1,160 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { register } from '../api/auth'
-import { useAuth } from '../auth/AuthContext'
-import { login as apiLogin } from '../api/auth'
+import { useNavigate } from 'react-router-dom'
+import client from '../api/client'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
-  const { login } = useAuth()
-
   const [form, setForm] = useState({
     username: '',
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone_number: '',
+    firstName: '',
+    lastName: '',
+    phoneNumber: '',
     password: '',
-    confirm_password: '',
+    confirmPassword: '',
   })
-  const [errors, setErrors] = useState({})
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
-
-  const update = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }))
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setErrors({})
+    setError('')
+    setSuccess('')
+
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
     setLoading(true)
     try {
-      await register(form)
-      // Auto-login after registration
-      await login(form.username, form.password)
-      navigate('/commuter', { replace: true })
+      await client.post('/api/auth/register/', {
+        username: form.username,
+        first_name: form.firstName,
+        last_name: form.lastName,
+        phone_number: form.phoneNumber,
+        password: form.password,
+      })
+      
+      setSuccess('Account created successfully! Redirecting to login...')
+      setTimeout(() => {
+        navigate('/login')
+      }, 2000)
     } catch (err) {
-      const data = err.response?.data
-      if (data && typeof data === 'object') {
-        setErrors(data)
-      } else {
-        setErrors({ detail: 'Registration failed. Please try again.' })
-      }
+      setError(
+        err.response?.data?.detail ||
+        err.response?.data?.username?.[0] ||
+        'Registration failed. Please verify your details and try again.'
+      )
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-cream flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-cream flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold" style={{ fontFamily: 'serif' }}>
-            <span className="text-green-deep">Smart</span>
-            <span className="text-amber">Transit</span>
-          </h1>
-          <p className="text-ink-light mt-2 text-sm">Create your commuter account</p>
+          <a href="/" className="inline-block">
+            <h1 className="text-3xl font-bold" style={{ fontFamily: 'serif' }}>
+              <span className="text-green-deep">Smart</span>
+              <span className="text-amber">Transit</span>
+            </h1>
+          </a>
+          <p className="text-ink-light mt-2 text-sm">Create an account to start booking rides</p>
         </div>
 
+        {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <Input
-                label="First name"
+                label="First Name"
                 type="text"
-                placeholder="John"
-                value={form.first_name}
-                onChange={update('first_name')}
-                error={errors.first_name}
+                placeholder="First name"
+                value={form.firstName}
+                onChange={(e) => setForm(f => ({ ...f, firstName: e.target.value }))}
+                required
               />
               <Input
-                label="Last name"
+                label="Last Name"
                 type="text"
-                placeholder="Kamau"
-                value={form.last_name}
-                onChange={update('last_name')}
-                error={errors.last_name}
+                placeholder="Last name"
+                value={form.lastName}
+                onChange={(e) => setForm(f => ({ ...f, lastName: e.target.value }))}
+                required
               />
             </div>
 
             <Input
               label="Username"
               type="text"
-              placeholder="johnkamau"
+              placeholder="Choose a username"
               value={form.username}
-              onChange={update('username')}
-              error={errors.username}
+              onChange={(e) => setForm(f => ({ ...f, username: e.target.value }))}
               required
             />
 
             <Input
-              label="Phone number"
+              label="Phone Number"
               type="tel"
-              placeholder="0712 345 678"
-              value={form.phone_number}
-              onChange={update('phone_number')}
-              error={errors.phone_number}
-            />
-
-            <Input
-              label="Email (optional)"
-              type="email"
-              placeholder="john@example.com"
-              value={form.email}
-              onChange={update('email')}
-              error={errors.email}
+              placeholder="e.g. 0712345678"
+              value={form.phoneNumber}
+              onChange={(e) => setForm(f => ({ ...f, phoneNumber: e.target.value }))}
+              required
             />
 
             <Input
               label="Password"
               type="password"
-              placeholder="At least 8 characters"
+              placeholder="Create password"
               value={form.password}
-              onChange={update('password')}
-              error={errors.password}
+              onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))}
               required
             />
 
             <Input
-              label="Confirm password"
+              label="Confirm Password"
               type="password"
-              placeholder="Repeat your password"
-              value={form.confirm_password}
-              onChange={update('confirm_password')}
-              error={errors.confirm_password}
+              placeholder="Confirm password"
+              value={form.confirmPassword}
+              onChange={(e) => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
               required
             />
 
-            {errors.detail && (
+            {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
-                {errors.detail}
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3">
+                {success}
               </div>
             )}
 
             <Button type="submit" loading={loading} className="w-full mt-2">
-              Create account
+              Sign Up
             </Button>
           </form>
 
-          <p className="text-center text-sm text-ink-light mt-6">
+          <div className="text-center mt-6 text-sm text-ink-light">
             Already have an account?{' '}
-            <Link to="/login" className="text-green-mid font-medium hover:text-green-deep transition-colors">
-              Sign in
-            </Link>
-          </p>
+            <button
+              onClick={() => navigate('/login')}
+              className="text-green-deep hover:underline font-semibold focus:outline-none"
+            >
+              Sign In
+            </button>
+          </div>
         </div>
 
         <p className="text-center text-xs text-ink-light mt-6">
-          SmartTransit — Know your bus is coming.
+          SmartTransit — Know your bus is coming.{' '}
+          <a href="/" className="text-green-deep hover:underline">Back to home</a>
         </p>
       </div>
     </div>
