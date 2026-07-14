@@ -25,7 +25,11 @@ from domains.accounts.permissions import IsFleetOwnerOrSuperAdmin, IsConductor, 
 
 class RouteViewSet(viewsets.ModelViewSet):
     serializer_class = RouteSerializer
-    permission_classes = [IsFleetOwnerOrSuperAdmin]
+
+    def get_permissions(self):
+        if self.request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return [IsAuthenticated()]
+        return [IsFleetOwnerOrSuperAdmin()]
 
     def get_queryset(self):
         return Route.objects.all()

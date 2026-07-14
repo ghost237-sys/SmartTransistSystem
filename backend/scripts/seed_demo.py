@@ -113,33 +113,42 @@ def seed_monthly_analytics(tenant, schedules, driver, conductor):
 print('🌱 Seeding demo data...')
 
 # 1. Wipe old data first
-try:
-    existing_tenant = Tenant.objects.get(slug='supermetro')
-    print('🧹 Wiping existing demo data for Supermetro...')
+print('🧹 Wiping existing database data database-wide...')
 
-    ParcelScanEvent.objects.filter(parcel__tenant=existing_tenant).delete()
-    Parcel.objects.filter(tenant=existing_tenant).delete()
-    Payment.objects.filter(tenant=existing_tenant).delete()
-    Booking.objects.filter(tenant=existing_tenant).delete()
-    Trip.objects.filter(tenant=existing_tenant).delete()
-    Stop.objects.filter(route__tenant=existing_tenant).delete()
-    Route.objects.filter(tenant=existing_tenant).delete()
-    # Delete queue entries before vehicles (protected foreign key)
-    from domains.stage_queue.models import QueueEntry
-    QueueEntry.objects.filter(vehicle__tenant=existing_tenant).delete()
-    Vehicle.objects.filter(tenant=existing_tenant).delete()
-    Fleet.objects.filter(tenant=existing_tenant).delete()
+from domains.stage_queue.models import QueueEntry
+from domains.passes.models import CommuterPass, PassUsage, CreditTransaction
+from domains.booking.models import Booking
+from domains.payments.models import Payment
+from domains.parcels.models import Parcel, ParcelScanEvent
+from domains.routing.models import Trip, Stop, Route
+from domains.fleet.models import Vehicle, Fleet
+from domains.tenants.models import Tenant
+from domains.stage_queue.models import Stage
 
-    existing_tenant.delete()
-except Tenant.DoesNotExist:
-    ParcelScanEvent.objects.all().delete()
-    Parcel.objects.all().delete()
+# Delete transaction/dynamic data database-wide to avoid constraint errors
+QueueEntry.objects.all().delete()
+Booking.objects.all().delete()
+Payment.objects.all().delete()
+PassUsage.objects.all().delete()
+CreditTransaction.objects.all().delete()
+CommuterPass.objects.all().delete()
+ParcelScanEvent.objects.all().delete()
+Parcel.objects.all().delete()
+
+# Wipe stages, active trips, routes, vehicles, fleets, and tenants
+Stage.objects.all().delete()
+Trip.objects.all().delete()
+Stop.objects.all().delete()
+Route.objects.all().delete()
+Vehicle.objects.all().delete()
+Fleet.objects.all().delete()
+Tenant.objects.all().delete()
 
 demo_usernames = [
     'admin', 'supermetro_owner',
     'driver_th047', 'driver_th112', 'driver_ng018', 'driver_th203', 'driver_ki034',
     'conductor_th047', 'conductor_th112', 'conductor_ng018', 'conductor_th203', 'conductor_ki034',
-    'commuter_alice', 'commuter_bob', 'commuter_carol', 'investor_commuter',
+    'commuter_alice', 'commuter_bob', 'commuter_carol', 'investor_commuter', 'commuter_dennis',
 ]
 User.objects.filter(username__in=demo_usernames).delete()
 

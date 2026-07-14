@@ -36,6 +36,7 @@ import CashPage from './pages/conductor/CashPage'
 
 // Driver pages
 import DriverLayout from './layouts/DriverLayout'
+import DriverDashboardPage from './pages/driver/DriverDashboardPage'
 import TripsPage from './pages/driver/TripsPage'
 import NavigatePage from './pages/driver/NavigatePage'
 import DriverManifestPage from './pages/driver/DriverManifestPage'
@@ -110,7 +111,8 @@ export default function App() {
           <DriverLayout />
         </RequireAuth>
       }>
-        <Route index element={<TripsPage />} />
+        <Route index element={<DriverDashboardPage />} />
+        <Route path="trips" element={<TripsPage />} />
         <Route path="manifest" element={<DriverManifestPage />} />
         <Route path="manifest/:tripId" element={<DriverManifestPage />} />
         <Route path="trip/:tripId" element={<NavigatePage />} />

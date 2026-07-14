@@ -61,7 +61,7 @@ class CommuterPassViewSet(viewsets.ModelViewSet):
             serializer = CommuterPassSerializer(pass_instance)
             return Response(serializer.data)
         except CommuterPass.DoesNotExist:
-            return Response({'detail': 'No active pass found'}, status=404)
+            return Response(None, status=200)
     
     @action(detail=True, methods=['post'])
     def use(self, request, pk=None):
