@@ -1,0 +1,136 @@
+services:
+  # 1. Django Backend Web Service
+  - type: web
+    name: transit-backend
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - fromGroup: transit-shared-secrets
+      - key: PORT
+        value: 8000
+      - key: DB_HOST
+        fromDatabase:
+          name: transit-db
+          property: host
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: transit-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: transit-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: transit-db
+          property: password
+      - key: DB_PORT
+        value: 5432
+      - key: REDIS_HOST
+        fromService:
+          type: pserv
+          name: transit-redis
+          property: host
+      - key: REDIS_PORT
+        value: 6379
+      - key: CELERY_BROKER_URL
+        value: redis://transit-redis:6379/0
+      - key: CELERY_RESULT_BACKEND
+        value: redis://transit-redis:6379/0
+
+  # 2. Celery Background Worker
+  - type: worker
+    name: transit-celery-worker
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    dockerCommand: python -m celery -A config worker -l info
+    plan: free
+    envVars:
+      - fromGroup: transit-shared-secrets
+      - key: DB_HOST
+        fromDatabase:
+          name: transit-db
+          property: host
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: transit-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: transit-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: transit-db
+          property: password
+      - key: DB_PORT
+        value: 5432
+      - key: REDIS_HOST
+        fromService:
+          type: pserv
+          name: transit-redis
+          property: host
+      - key: REDIS_PORT
+        value: 6379
+      - key: CELERY_BROKER_URL
+        value: redis://transit-redis:6379/0
+      - key: CELERY_RESULT_BACKEND
+        value: redis://transit-redis:6379/0
+
+  # 3. Celery Beat Scheduler
+  - type: worker
+    name: transit-celery-beat
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    dockerCommand: python -m celery -A config beat -l info
+    plan: free
+    envVars:
+      - fromGroup: transit-shared-secrets
+      - key: DB_HOST
+        fromDatabase:
+          name: transit-db
+          property: host
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: transit-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: transit-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: transit-db
+          property: password
+      - key: DB_PORT
+        value: 5432
+      - key: REDIS_HOST
+        fromService:
+          type: pserv
+          name: transit-redis
+          property: host
+      - key: REDIS_PORT
+        value: 6379
+      - key: CELERY_BROKER_URL
+        value: redis://transit-redis:6379/0
+      - key: CELERY_RESULT_BACKEND
+        value: redis://transit-redis:6379/0
+
+  # 4. 100% Free Private Redis Container
+  - type: pserv
+    name: transit-redis
+    env: image
+    image: redis:alpine
+    plan: free
+    port: 6379
+
+# 5. PostgreSQL Database with PostGIS Support
+databases:
+  - name: transit-db
+    databaseName: transit_db
+    user: transit_user
+    plan: free
