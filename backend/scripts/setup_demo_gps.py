@@ -22,10 +22,10 @@ ROUTE_POSITIONS = {
         (-1.2219, 36.8914, 32),   # Roysambu / TRM
         (-1.1469, 36.9616, 38),   # Ruiru
     ],
-    'Ngong - Nairobi': [
+    'Route 111 (CBD ↔ Ngong)': [
         (-1.3350, 36.6900, 28),   # Between Ngong & Karen
     ],
-    'Kikuyu - Nairobi': [
+    'Route 105 (CBD ↔ Kikuyu)': [
         (-1.2580, 36.6800, 30),   # Near Kikuyu / Uthiru
     ],
     'Eastleigh - CBD': [

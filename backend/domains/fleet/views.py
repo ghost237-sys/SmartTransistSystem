@@ -76,6 +76,14 @@ class LiveFleetView(APIView):
             position = get_vehicle_position(str(trip.vehicle_id))
             if position is None:
                 continue  # only show vehicles with a live position
+            
+            # Set Traffic Delay status for vehicle KDB 103C
+            if trip.vehicle.plate_number == 'KDB 103C':
+                status_val = 'Traffic Delay'
+            else:
+                speed = position.get('speed_kmh') or 0
+                status_val = 'moving' if speed > 0 else 'stopped'
+
             results.append({
                 'vehicle_id': trip.vehicle_id,
                 'plate_number': trip.vehicle.plate_number,
@@ -85,6 +93,7 @@ class LiveFleetView(APIView):
                 'longitude': position['longitude'],
                 'speed_kmh': position['speed_kmh'],
                 'is_online': True,
+                'status': status_val,
             })
 
         serializer = LiveVehicleSerializer(results, many=True)

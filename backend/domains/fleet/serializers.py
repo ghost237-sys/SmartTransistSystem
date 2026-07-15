@@ -90,13 +90,18 @@ class FleetSerializer(serializers.ModelSerializer):
 
 class LiveVehicleSerializer(serializers.Serializer):
     vehicle_id = serializers.UUIDField()
+    bus_id = serializers.UUIDField(source='vehicle_id')
     plate_number = serializers.CharField()
+    plate = serializers.CharField(source='plate_number')
     trip_id = serializers.UUIDField(allow_null=True)
     route_name = serializers.CharField(allow_null=True)
+    route = serializers.CharField(source='route_name', allow_null=True)
     latitude = serializers.FloatField(allow_null=True)
     longitude = serializers.FloatField(allow_null=True)
     speed_kmh = serializers.FloatField(allow_null=True)
+    speed = serializers.FloatField(source='speed_kmh', allow_null=True)
     is_online = serializers.BooleanField()
+    status = serializers.CharField(default='moving')
 
 
 class RouteAnalyticsSerializer(serializers.Serializer):
@@ -112,6 +117,9 @@ class FleetAnalyticsSerializer(serializers.Serializer):
     period_start = serializers.DateField()
     period_end = serializers.DateField()
     total_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+    revenue = serializers.DecimalField(source='total_revenue', max_digits=12, decimal_places=2)
     total_passengers = serializers.IntegerField()
     total_trips = serializers.IntegerField()
+    active_buses = serializers.IntegerField(required=False)
+    delayed_buses = serializers.IntegerField(required=False)
     routes = RouteAnalyticsSerializer(many=True)

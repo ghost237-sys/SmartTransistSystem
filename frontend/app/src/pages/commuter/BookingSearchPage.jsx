@@ -9,6 +9,7 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import SmartDropdown from '../../components/ui/SmartDropdown'
+import { SUPER_METRO_ROUTES, getAllOtherStops, inferDirection, getIntermediateStops, matchRouteKey } from '../../utils/routeStages'
 
 export default function BookingSearchPage() {
   const navigate = useNavigate()
@@ -28,6 +29,7 @@ export default function BookingSearchPage() {
   
   // Trip mode state
   const [tripMode, setTripMode] = useState('single') // 'single', 'return', 'link'
+  // Direction is auto-inferred from boarding→destination sequence (no manual toggle)
   const [isReturn, setIsReturn] = useState(false)
   const [returnTime, setReturnTime] = useState('')
   const [returnDestinationSearch, setReturnDestinationSearch] = useState('')
@@ -174,6 +176,42 @@ export default function BookingSearchPage() {
     return stopsBefore
   }, [selectedStopId, allAvailableStops])
 
+  // Auto-infer direction from boarding→destination sequence
+  const inferredDirection = useMemo(() => {
+    if (!selectedStop || !routeList?.length) return null
+    const boardingStageName = !useCurrentLocation && selectedPickupStop
+      ? selectedPickupStop.name
+      : routeList?.[0]?.nearestStopName || null
+    if (!boardingStageName) return null
+
+    for (const route of routeList) {
+      const key = matchRouteKey(route.name)
+      if (key) {
+        const dir = inferDirection(key, boardingStageName, selectedStop)
+        if (dir) return dir
+      }
+    }
+    return null
+  }, [selectedStop, routeList, useCurrentLocation, selectedPickupStop])
+
+  // Auto-compute intermediate stops for the route summary
+  const intermediateStops = useMemo(() => {
+    if (!selectedStop || !routeList?.length) return []
+    const boardingStageName = !useCurrentLocation && selectedPickupStop
+      ? selectedPickupStop.name
+      : routeList?.[0]?.nearestStopName || null
+    if (!boardingStageName) return []
+
+    for (const route of routeList) {
+      const key = matchRouteKey(route.name)
+      if (key) {
+        const stops = getIntermediateStops(key, boardingStageName, selectedStop)
+        if (stops.length > 0) return stops
+      }
+    }
+    return []
+  }, [selectedStop, routeList, useCurrentLocation, selectedPickupStop])
+
   const filteredStops = useMemo(() => {
     const stopsSource = tripMode === 'link' ? (allStops || []) : allAvailableStops
     
@@ -187,12 +225,48 @@ export default function BookingSearchPage() {
       }
     }
 
-    if (!destinationSearch) return uniqueStops
+    // Show all other stops on matching routes (both directions)
+    // so mid-route commuters can pick either way
+    let routeFiltered = uniqueStops
+    if (tripMode !== 'link') {
+      const boardingStageName = !useCurrentLocation && selectedPickupStop
+        ? selectedPickupStop.name
+        : routeList?.[0]?.nearestStopName || null
+
+      if (boardingStageName) {
+        const matchedRouteKeys = []
+        for (const route of routeList || []) {
+          const key = matchRouteKey(route.name)
+          if (key && !matchedRouteKeys.includes(key)) matchedRouteKeys.push(key)
+        }
+
+        if (matchedRouteKeys.length > 0) {
+          const allowedDestinations = new Set()
+          for (const routeKey of matchedRouteKeys) {
+            // Show ALL other stops, not just downstream — direction is auto-detected after selection
+            const otherStops = getAllOtherStops(routeKey, boardingStageName)
+            otherStops.forEach(name => allowedDestinations.add(name))
+          }
+
+          if (allowedDestinations.size > 0) {
+            const matched = uniqueStops.filter(stop => allowedDestinations.has(stop.name))
+            // Only apply the filter if it actually matched some backend stops;
+            // otherwise fall back to showing all stops (name mismatch between
+            // hardcoded route data and backend stop names)
+            if (matched.length > 0) {
+              routeFiltered = matched
+            }
+          }
+        }
+      }
+    }
+
+    if (!destinationSearch) return routeFiltered
     const search = destinationSearch.toLowerCase()
-    return uniqueStops.filter(stop =>
+    return routeFiltered.filter(stop =>
       stop.name.toLowerCase().includes(search)
     )
-  }, [destinationSearch, allAvailableStops, allStops, tripMode])
+  }, [destinationSearch, allAvailableStops, allStops, tripMode, useCurrentLocation, selectedPickupStop, routeList])
 
   // Query for direct routes
   const { data: rides, isLoading, error } = useQuery({
@@ -549,7 +623,21 @@ export default function BookingSearchPage() {
           {/* Destination selector */}
           {((tripMode === 'link' && allStops && allStops.length > 0) || allAvailableStops.length > 0) && (
             <div>
-              <label className="block text-sm font-medium text-ink mb-2">Where to?</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-ink">Where to?</label>
+                {inferredDirection && (
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    inferredDirection === 'outbound'
+                      ? 'bg-green-50 text-green-700 border border-green-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      inferredDirection === 'outbound' ? 'bg-green-500' : 'bg-amber-500'
+                    }`} />
+                    {inferredDirection === 'outbound' ? 'Outbound' : 'Inbound'}
+                  </span>
+                )}
+              </div>
               <SmartDropdown
                 placeholder="Search destination"
                 value={destinationSearch}
