@@ -37,17 +37,6 @@ export default function CommuterLayout() {
               Smart<span className="text-[#f1a81f]">Transit</span>
             </span>
           </NavLink>
-          
-          {/* User profile identifier (opens More drawer on click) */}
-          <button 
-            onClick={() => setIsMoreOpen(true)}
-            className="flex items-center gap-2 text-white/80 hover:text-white cursor-pointer bg-emerald-950/40 py-1 px-2.5 rounded-full border border-emerald-800/40"
-          >
-            <span className="text-xs font-semibold">@{user?.username || 'commuter'}</span>
-            <div className="w-6 h-6 rounded-full bg-emerald-800 flex items-center justify-center font-bold text-xs border border-emerald-700">
-              {(user?.username?.[0] || 'C').toUpperCase()}
-            </div>
-          </button>
         </header>
 
         {/* Scrollable Page Content (gives padding at bottom for the bottom bar) */}
@@ -200,18 +189,6 @@ export default function CommuterLayout() {
               <span className="font-semibold text-sm">Help & Support</span>
             </button>
 
-            <div className="h-px bg-gray-100 my-2" />
-
-            <button
-              onClick={() => {
-                setIsMoreOpen(false)
-                handleLogout()
-              }}
-              className="flex items-center gap-4 w-full p-4 hover:bg-red-50 rounded-xl text-left transition-colors text-red-600 cursor-pointer"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="font-semibold text-sm">Sign Out</span>
-            </button>
           </div>
         </div>
 
