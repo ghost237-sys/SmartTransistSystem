@@ -14,7 +14,7 @@ const generateUUID = () => {
   })
 }
 
-import { deviceHandshake } from '../api/auth'
+import { deviceHandshake, refreshToken } from '../api/auth'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -30,12 +30,40 @@ export function AuthProvider({ children }) {
     }
     setDeviceUuid(storedUuid)
 
-    // 2. Rehydrate user or perform handshake
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]))
-        if (payload.exp * 1000 > Date.now()) {
+    // 2. Rehydrate user, refresh token, or perform handshake
+    const attemptRehydrateOrHandshake = async () => {
+      const token = localStorage.getItem('access_token')
+      const refresh = localStorage.getItem('refresh_token')
+
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]))
+          if (payload.exp * 1000 > Date.now()) {
+            setUser({
+              id: payload.user_id,
+              role: payload.role,
+              tenantId: payload.tenant_id,
+              username: payload.username,
+              phoneNumber: payload.phone_number ?? null,
+              demoLat: payload.demo_lat ?? null,
+              demoLng: payload.demo_lng ?? null,
+              demoLocationLabel: payload.demo_location_label ?? null,
+            })
+            setLoading(false)
+            return
+          }
+        } catch {
+          // Token is malformed
+        }
+      }
+
+      // If access token is expired but refresh token exists, try to refresh first
+      if (refresh) {
+        try {
+          const data = await refreshToken(refresh)
+          localStorage.setItem('access_token', data.access)
+          if (data.refresh) localStorage.setItem('refresh_token', data.refresh)
+          const payload = JSON.parse(atob(data.access.split('.')[1]))
           setUser({
             id: payload.user_id,
             role: payload.role,
@@ -48,18 +76,14 @@ export function AuthProvider({ children }) {
           })
           setLoading(false)
           return
-        } else {
+        } catch {
+          // Refresh failed (expired or invalid)
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
         }
-      } catch {
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
       }
-    }
 
-    // Handshake for guest commuter session
-    const performHandshake = async () => {
+      // Otherwise, run guest handshake
       try {
         const data = await deviceHandshake(storedUuid)
         localStorage.setItem('access_token', data.access)
@@ -82,7 +106,7 @@ export function AuthProvider({ children }) {
       }
     }
 
-    performHandshake()
+    attemptRehydrateOrHandshake()
   }, [])
 
   const login = async (username, password) => {

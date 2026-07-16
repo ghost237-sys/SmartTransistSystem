@@ -38,14 +38,14 @@ client.interceptors.response.use(
         } catch (refreshError) {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
-          window.location.href = '/app/login'
+          window.location.href = '/login'
           return Promise.reject(refreshError)
         }
       } else {
         // Retry also failed with 401, clear credentials and force login
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
-        window.location.href = '/app/login'
+        window.location.href = '/login'
       }
     }
     return Promise.reject(error)
