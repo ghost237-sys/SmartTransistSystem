@@ -8,11 +8,15 @@ _redis_client = None
 def get_redis_client():
     global _redis_client
     if _redis_client is None:
-        _redis_client = redis.Redis(
-            host=config('REDIS_HOST'),
-            port=config('REDIS_PORT', cast=int),
-            decode_responses=True,
-        )
+        redis_url = config('REDIS_URL', default='')
+        if redis_url:
+            _redis_client = redis.Redis.from_url(redis_url, decode_responses=True)
+        else:
+            _redis_client = redis.Redis(
+                host=config('REDIS_HOST', default='localhost'),
+                port=config('REDIS_PORT', default=6379, cast=int),
+                decode_responses=True,
+            )
     return _redis_client
 
 
