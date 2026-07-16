@@ -117,8 +117,13 @@ def run_seed(force=False):
     from domains.parcels.utils import generate_tracking_code, generate_qr_token
     # Idempotency check
     if not force:
-        if User.objects.filter(role=User.Role.COMMUTER).exists() or Route.objects.exists():
-            print("Database already seeded (commuters or routes exist). Skipping seed_demo.")
+        from django.db.utils import ProgrammingError, OperationalError
+        try:
+            if User.objects.filter(role=User.Role.COMMUTER).exists() or Route.objects.exists():
+                print("Database already seeded (commuters or routes exist). Skipping seed_demo.")
+                return
+        except (ProgrammingError, OperationalError) as e:
+            print(f"Database tables do not exist or are not ready ({e}). Skipping auto-seeding until migrations are applied.")
             return
     def assign_demo_location(user, stop, route_name):
         user.demo_latitude = stop.location.y
