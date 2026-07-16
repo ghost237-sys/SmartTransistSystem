@@ -6,8 +6,6 @@ Run with: python manage.py shell < scripts/seed_pass_tiers.py
 import os
 import django
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-django.setup()
 
 from decimal import Decimal
 from domains.passes.models import PassTier
@@ -83,4 +81,6 @@ def seed_pass_tiers():
     print("\n✅ Pass tiers seeded successfully!")
 
 if __name__ == '__main__':
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+    django.setup()
     seed_pass_tiers()
