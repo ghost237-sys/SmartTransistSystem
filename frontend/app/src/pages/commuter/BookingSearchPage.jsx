@@ -176,6 +176,39 @@ export default function BookingSearchPage() {
     return stopsBefore
   }, [selectedStopId, allAvailableStops])
 
+  // Filter pickup stops: prioritize 5km location search, fallback to all stops
+  const filteredPickupStops = useMemo(() => {
+    if (!allStops) return []
+    const search = pickupSearch.toLowerCase()
+    
+    let stops = allStops
+    if (useCurrentLocation && userLocation) {
+      const nearby = allStops.filter(stop => {
+        const matchesSearch = stop.name.toLowerCase().includes(search)
+        const distance = Math.sqrt(
+          Math.pow(stop.latitude - userLocation.lat, 2) +
+          Math.pow(stop.longitude - userLocation.lng, 2)
+        )
+        const distanceKm = distance * 111
+        return matchesSearch && distanceKm <= 5
+      })
+      if (nearby.length > 0) {
+        stops = nearby
+      } else {
+        stops = allStops.filter(stop => stop.name.toLowerCase().includes(search))
+      }
+    } else {
+      stops = allStops.filter(stop => stop.name.toLowerCase().includes(search))
+    }
+    
+    return stops.map(stop => ({
+      id: stop.id,
+      name: stop.name,
+      lat: stop.latitude,
+      lng: stop.longitude,
+    }))
+  }, [allStops, pickupSearch, useCurrentLocation, userLocation])
+
   // Auto-infer direction from boarding→destination sequence
   const inferredDirection = useMemo(() => {
     if (!selectedStop || !routeList?.length) return null
@@ -584,21 +617,7 @@ export default function BookingSearchPage() {
               placeholder="Select pickup location"
               value={pickupSearch}
               onChange={setPickupSearch}
-              items={allStops?.filter(stop => {
-                const matchesSearch = stop.name.toLowerCase().includes(pickupSearch.toLowerCase())
-                if (!userLocation) return matchesSearch
-                const distance = Math.sqrt(
-                  Math.pow(stop.latitude - userLocation.lat, 2) +
-                  Math.pow(stop.longitude - userLocation.lng, 2)
-                )
-                const distanceKm = distance * 111
-                return matchesSearch && distanceKm <= 5
-              }).map(stop => ({
-                id: stop.id,
-                name: stop.name,
-                lat: stop.latitude,
-                lng: stop.longitude,
-              })) || []}
+              items={filteredPickupStops}
               renderItem={(item) => (
                 <div className="flex items-center justify-between">
                   <div>
