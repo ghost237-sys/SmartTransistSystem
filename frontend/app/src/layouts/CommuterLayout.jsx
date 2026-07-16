@@ -62,7 +62,8 @@ export default function CommuterLayout() {
         >
           <div className="flex justify-around items-center h-16">
             <NavLink
-              to="/commuter/pass"
+              to="/commuter"
+              end
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center w-full h-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
                   isActive ? 'text-[#f1a81f]' : 'text-white/60 hover:text-white'
@@ -74,8 +75,7 @@ export default function CommuterLayout() {
             </NavLink>
             
             <NavLink
-              to="/commuter"
-              end
+              to="/commuter/plan"
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center w-full h-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
                   isActive ? 'text-[#f1a81f]' : 'text-white/60 hover:text-white'
@@ -96,6 +96,18 @@ export default function CommuterLayout() {
             >
               <Ticket className="w-5 h-5 mb-1" />
               <span>My Tickets</span>
+            </NavLink>
+
+            <NavLink
+              to="/commuter/pass"
+              className={({ isActive }) =>
+                `flex flex-col items-center justify-center w-full h-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                  isActive ? 'text-[#f1a81f]' : 'text-white/60 hover:text-white'
+                }`
+              }
+            >
+              <Calendar className="w-5 h-5 mb-1" />
+              <span>My Pass</span>
             </NavLink>
 
             <button

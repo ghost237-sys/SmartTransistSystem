@@ -40,3 +40,24 @@ class User(AbstractUser):
 
     def __str__(self):
         return f'{self.username} ({self.role})'
+
+
+class Device(models.Model):
+    device_uuid = models.UUIDField(unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='devices')
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_active = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.device_uuid} -> {self.user.username}'
+
+
+class DeviceVerificationToken(models.Model):
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    phone_number = models.CharField(max_length=20)
+    device_uuid = models.UUIDField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f'{self.phone_number} ({self.device_uuid}) - Used: {self.is_used}'

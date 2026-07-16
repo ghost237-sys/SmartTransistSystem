@@ -9,12 +9,17 @@ import UnauthorizedPage from './pages/UnauthorizedPage'
 // Commuter pages
 import CommuterLayout from './layouts/CommuterLayout'
 import BookingSearchPage from './pages/commuter/BookingSearchPage'
+import CommuterDashboardHome from './pages/commuter/CommuterDashboardHome'
+import SessionVerifyPage from './pages/commuter/SessionVerifyPage'
 import BookingPage from './pages/commuter/BookingPage'
 import PaymentPage from './pages/commuter/PaymentPage'
 import BookingConfirmedPage from './pages/commuter/BookingConfirmedPage'
 import TrackingPage from './pages/commuter/TrackingPage'
 import MyTicketsPage from './pages/commuter/MyTicketsPage'
 import MyCommuterPassPage from './pages/commuter/MyCommuterPassPage'
+
+// Fleet owner pages
+// ... (omitted unchanged imports for brevity, let's target the route mapping)
 
 // Fleet owner pages
 import FleetLayout from './layouts/FleetLayout'
@@ -68,13 +73,15 @@ export default function App() {
           <CommuterLayout />
         </RequireAuth>
       }>
-        <Route index element={<BookingSearchPage />} />
+        <Route index element={<CommuterDashboardHome />} />
+        <Route path="plan" element={<BookingSearchPage />} />
         <Route path="book/:tripId" element={<BookingPage />} />
         <Route path="pay/:tripId" element={<PaymentPage />} />
         <Route path="booking/:bookingId" element={<BookingConfirmedPage />} />
         <Route path="track/:tripId" element={<TrackingPage />} />
         <Route path="tickets" element={<MyTicketsPage />} />
         <Route path="pass" element={<MyCommuterPassPage />} />
+        <Route path="session/verify/:token" element={<SessionVerifyPage />} />
       </Route>
 
       {/* Fleet owner routes */}

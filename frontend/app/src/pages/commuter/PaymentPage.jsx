@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getTrip } from '../../api/trips'
+import { useAuth } from '../../auth/AuthContext'
 import { createBooking, createMultiModeBooking } from '../../api/bookings'
 import { PAYMENT_METHODS } from '../../constants/paymentMethods'
 import Card from '../../components/ui/Card'
@@ -31,8 +32,9 @@ export default function PaymentPage() {
   const navigate = useNavigate()
   const { state: rideState } = useLocation()
 
+  const { user } = useAuth()
   const [selectedMethod, setSelectedMethod] = useState('mpesa')
-  const [phone, setPhone] = useState('')
+  const [phone, setPhone] = useState(user?.phoneNumber || '')
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState('')
 

@@ -125,6 +125,11 @@ class CreateBookingView(APIView):
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Update user's phone number if not set (progressive profile building)
+        if not request.user.phone_number:
+            request.user.phone_number = normalized_phone
+            request.user.save(update_fields=['phone_number'])
+
         use_mock_payment = config('MPESA_MOCK_PAYMENTS', default=settings.DEBUG, cast=bool)
 
         with transaction.atomic():
@@ -615,6 +620,11 @@ class MultiModeBookingView(APIView):
             normalized_phone = normalize_phone_number(phone_number)
         except ValueError as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update user's phone number if not set (progressive profile building)
+        if not request.user.phone_number:
+            request.user.phone_number = normalized_phone
+            request.user.save(update_fields=['phone_number'])
 
         use_mock_payment = config('MPESA_MOCK_PAYMENTS', default=settings.DEBUG, cast=bool)
 
