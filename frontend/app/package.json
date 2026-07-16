@@ -4,9 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run sync:landing && vite",
-    "build": "npm run sync:landing && vite build",
-    "sync:landing": "cp ../landing/index.html ./index.html",
+    "dev": "vite",
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
