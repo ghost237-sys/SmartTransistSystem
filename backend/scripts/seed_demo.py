@@ -170,6 +170,7 @@ def run_seed(force=False):
         'driver_th047', 'driver_th112', 'driver_ng018', 'driver_th203', 'driver_ki034',
         'conductor_th047', 'conductor_th112', 'conductor_ng018', 'conductor_th203', 'conductor_ki034',
         'commuter_alice', 'commuter_bob', 'commuter_carol', 'investor_commuter', 'commuter_dennis',
+        'commuter_one_way', 'commuter_round_trip', 'commuter_transfer',
     ]
     User.objects.filter(username__in=demo_usernames).delete()
     
@@ -242,6 +243,9 @@ def run_seed(force=False):
     commuter3   = get_or_create_user('commuter_carol', User.Role.COMMUTER, first_name='Carol', last_name='Wambui')
     commuter4   = get_or_create_user('investor_commuter', User.Role.COMMUTER, first_name='Investor', last_name='Commuter')
     commuter5   = get_or_create_user('commuter_dennis', User.Role.COMMUTER, first_name='Dennis', last_name='Karanja')
+    commuter_ow = get_or_create_user('commuter_one_way', User.Role.COMMUTER, first_name='OneWay', last_name='Thika')
+    commuter_rt = get_or_create_user('commuter_round_trip', User.Role.COMMUTER, first_name='RoundTrip', last_name='Thika')
+    commuter_tf = get_or_create_user('commuter_transfer', User.Role.COMMUTER, first_name='Transfer', last_name='Thika')
     
     super_admin.is_superuser = True
     super_admin.is_staff = True
@@ -560,6 +564,33 @@ def run_seed(force=False):
     stop_kikuyu = kikuyu_stops[0]
     stop_kikuyu_cbd = kikuyu_stops[-1]
     
+    route_kikuyu_rev, _ = Route.objects.get_or_create(
+        tenant=tenant,
+        name='Route 105: Nairobi CBD - Kikuyu',
+        defaults={
+            'path': LineString([
+                (36.8219, -1.2921),  # Nairobi CBD
+                (36.7850, -1.2850),  # Parklands
+                (36.7500, -1.2800),  # Westlands
+                (36.7300, -1.2750),  # Kangemi
+                (36.7000, -1.2650),  # Regen
+                (36.6800, -1.2600),  # Uthiru
+                (36.6620, -1.2540),  # Kikuyu Stage
+            ], srid=4326),
+            'distance_km': 22,
+            'estimated_duration_minutes': 40,
+            'is_active': True,
+        }
+    )
+    kikuyu_rev_stops = []
+    for seq, (name, lng, lat) in enumerate(reversed(kikuyu_stop_defs)):
+        stop, _ = Stop.objects.update_or_create(
+            route=route_kikuyu_rev, sequence=seq,
+            defaults={'name': name, 'location': Point(lng, lat, srid=4326)},
+        )
+        kikuyu_rev_stops.append(stop)
+    stop_kikuyu_rev_cbd = kikuyu_rev_stops[0]
+    
     print(f'✓ Routes: {Route.objects.filter(tenant=tenant).count()} active lines')
 
     # Seed 20 users with active weekly/monthly passes
@@ -672,7 +703,7 @@ def run_seed(force=False):
         (vehicle1, route_nm, Decimal('150')),
         (vehicle2, route_nm, Decimal('150')),
         (vehicle3, route_ngong, Decimal('120')),
-        (vehicle5, route_kikuyu, Decimal('100')),
+        (vehicle5, route_kikuyu_rev, Decimal('100')),
     ]
     
     live_trips = []
@@ -897,6 +928,17 @@ def run_seed(force=False):
         }
     )
     
+    LinkedRoute.objects.get_or_create(
+        first_route=route_nm,
+        second_route=route_kikuyu_rev,
+        transfer_station=transfer_station_cbd,
+        defaults={
+            'first_route_stop': stop_cbd,
+            'second_route_stop': stop_kikuyu_rev_cbd,
+            'is_active': True,
+        }
+    )
+    
     # Create second leg trips for link bookings
     link_second_trips = []
     for vehicle in [vehicle2, vehicle3]:
@@ -1065,6 +1107,9 @@ def run_seed(force=False):
     assign_demo_location(commuter3, stop_kikuyu, route_kikuyu.name)
     assign_demo_location(commuter4, stop_thika, route_nm.name)
     assign_demo_location(commuter5, stop_ngong_stage, route_ngong.name)
+    assign_demo_location(commuter_ow, stop_thika, route_nm.name)
+    assign_demo_location(commuter_rt, stop_thika, route_nm.name)
+    assign_demo_location(commuter_tf, stop_thika, route_nm.name)
     
     print('✓ Demo commuter locations:')
     print(f'  commuter_alice   → {commuter1.demo_location_label} (all Thika Rd stops available as destinations)')
@@ -1094,7 +1139,7 @@ def run_seed(force=False):
     print()
     print('LOGIN CREDENTIALS (password: demo1234 for all):')
     print('  Fleet Owner:   supermetro_owner')
-    print('  Commuters:     commuter_alice · commuter_bob · commuter_carol')
+    print('  Commuters:     commuter_alice · commuter_bob · commuter_carol · commuter_one_way · commuter_round_trip · commuter_transfer')
     print()
     print('CREW BY FLEET CODE (driver / conductor):')
     for code, vehicle, v_driver, v_conductor in fleet_crew:
