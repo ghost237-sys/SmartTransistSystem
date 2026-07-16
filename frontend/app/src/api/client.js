@@ -1,6 +1,10 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://smarttransistsystem-production.up.railway.app'
+export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+export function getWsBase() {
+  return BASE_URL.replace(/^http/, 'ws')
+}
 
 const client = axios.create({
   baseURL: BASE_URL,

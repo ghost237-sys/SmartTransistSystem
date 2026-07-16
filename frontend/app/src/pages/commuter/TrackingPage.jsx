@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getTrip, getTripStops } from '../../api/trips'
+import { getWsBase } from '../../api/client'
 import MapView from '../../components/ui/MapView'
 import Card from '../../components/ui/Card'
 
@@ -30,7 +31,7 @@ export default function TrackingPage() {
   })
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8000/ws/trip/${tripId}/tracking/`)
+    const ws = new WebSocket(`${getWsBase()}/ws/trip/${tripId}/tracking/`)
     wsRef.current = ws
 
     ws.onopen = () => setConnected(true)
