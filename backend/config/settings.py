@@ -298,6 +298,8 @@ SIMPLE_JWT = {
 }
 
 # Rate limiting
+import sys
+RATELIMIT_ENABLE = not any('test' in arg for arg in sys.argv)
 RATELIMIT_USE_CACHE = 'default'
 
 CACHES = {

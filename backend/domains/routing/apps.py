@@ -19,7 +19,8 @@ class RoutingConfig(AppConfig):
             def run_seed_async():
                 try:
                     from scripts.seed_demo import run_seed
-                    run_seed(force=False)
+                    force_seed = os.environ.get('FORCE_SEED', 'false').lower() == 'true'
+                    run_seed(force=force_seed)
                 except Exception as e:
                     import logging
                     logging.getLogger(__name__).error(f"Async seeding failed: {e}", exc_info=True)

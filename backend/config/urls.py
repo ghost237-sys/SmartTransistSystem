@@ -21,7 +21,13 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from domains.accounts.views import CustomTokenObtainPairView
 
+from django.http import JsonResponse
+
+def api_root(request):
+    return JsonResponse({"message": "SmartTransit API is running successfully"}, status=200)
+
 urlpatterns = [
+    path('', api_root, name='api-root'),
     path('admin/', admin.site.urls),
     path('api/auth/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
