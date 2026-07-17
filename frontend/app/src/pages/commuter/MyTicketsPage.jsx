@@ -90,7 +90,7 @@ export default function MyTicketsPage() {
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => navigate(`/commuter/booking/${booking.id}`)}
+                      onClick={() => navigate(`/booking/${booking.id}`)}
                     >
                       Track bus
                     </Button>

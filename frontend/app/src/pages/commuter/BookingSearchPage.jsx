@@ -459,7 +459,7 @@ export default function BookingSearchPage() {
       alighting_stop_id: selectedStopId,
     }
 
-    navigate(`/commuter/pay/${outboundRide.trip_id}`, {
+    navigate(`/pay/${outboundRide.trip_id}`, {
       state: {
         bookingData,
         pickupStopName: useCurrentLocation ? outboundRide.pickup_stop_name : selectedPickupStop?.name,
@@ -488,7 +488,7 @@ export default function BookingSearchPage() {
       ? new Date(selectedReturnTrip.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : 'scheduled time'
 
-    navigate(`/commuter/pay/${selectedOutboundTrip.trip_id}`, {
+    navigate(`/pay/${selectedOutboundTrip.trip_id}`, {
       state: {
         bookingData,
         pickupStopName: useCurrentLocation ? selectedOutboundTrip.pickup_stop_name : selectedPickupStop?.name,
@@ -513,7 +513,7 @@ export default function BookingSearchPage() {
       transfer_station_id: journey.linked_route_id,
     }
 
-    navigate(`/commuter/pay/${journey.first_leg.trip_id}`, {
+    navigate(`/pay/${journey.first_leg.trip_id}`, {
       state: {
         bookingData,
         isLinkedJourney: true,

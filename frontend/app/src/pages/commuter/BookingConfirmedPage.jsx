@@ -362,10 +362,10 @@ export default function BookingConfirmedPage() {
       </div>
 
       <div className="flex gap-3">
-        <Button variant="secondary" className="flex-1" onClick={() => navigate('/commuter')}>
+        <Button variant="secondary" className="flex-1" onClick={() => navigate('/')}>
           Find another ride
         </Button>
-        <Button className="flex-1" onClick={() => navigate('/commuter/tickets')}>
+        <Button className="flex-1" onClick={() => navigate('/tickets')}>
           My tickets
         </Button>
       </div>

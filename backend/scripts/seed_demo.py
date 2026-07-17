@@ -144,6 +144,7 @@ def run_seed(force=False):
     from domains.routing.models import Trip, Stop, Route
     from domains.fleet.models import Vehicle, Fleet
     from domains.tenants.models import Tenant
+    from domains.tracking.models import VehiclePosition
     from domains.stage_queue.models import Stage
     
     # Delete transaction/dynamic data database-wide to avoid constraint errors
@@ -155,6 +156,7 @@ def run_seed(force=False):
     CommuterPass.objects.all().delete()
     ParcelScanEvent.objects.all().delete()
     Parcel.objects.all().delete()
+    VehiclePosition.objects.all().delete()
     
     # Wipe stages, active trips, routes, vehicles, fleets, and tenants
     Stage.objects.all().delete()

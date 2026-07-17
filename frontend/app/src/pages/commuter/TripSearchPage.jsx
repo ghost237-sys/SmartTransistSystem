@@ -110,14 +110,14 @@ export default function TripSearchPage() {
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => navigate(`/commuter/track/${trip.id}`)}
+                    onClick={() => navigate(`/track/${trip.id}`)}
                   >
                     Track
                   </Button>
                   <Button
                     size="sm"
                     disabled={trip.available_seats === 0 || trip.status !== 'scheduled'}
-                    onClick={() => navigate(`/commuter/book/${trip.id}`)}
+                    onClick={() => navigate(`/book/${trip.id}`)}
                   >
                     Book
                   </Button>

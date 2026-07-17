@@ -84,7 +84,7 @@ export default function PaymentPage() {
 
       const bookingId = res.data.booking_id || res.data.outbound_booking_id
 
-      navigate(`/commuter/booking/${bookingId}`, {
+      navigate(`/booking/${bookingId}`, {
         replace: true,
         state: {
           pickupStopName: rideState?.pickupStopName,
@@ -141,9 +141,9 @@ export default function PaymentPage() {
 
   const handleBack = () => {
     if (rideState?.bookingData) {
-      navigate('/commuter')
+      navigate('/')
     } else {
-      navigate(`/commuter/book/${tripId}`, { state: rideState })
+      navigate(`/book/${tripId}`, { state: rideState })
     }
   }
 

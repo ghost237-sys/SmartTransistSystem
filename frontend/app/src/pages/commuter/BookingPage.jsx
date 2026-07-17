@@ -43,7 +43,7 @@ export default function BookingPage() {
     : 'Active now'
 
   const handleContinue = () => {
-    navigate(`/commuter/pay/${tripId}`, {
+    navigate(`/pay/${tripId}`, {
       state: {
         pickupStopId,
         pickupStopName,
