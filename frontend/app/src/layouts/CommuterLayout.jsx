@@ -32,7 +32,7 @@ export default function CommuterLayout() {
         
         {/* Sticky App Header (Persistent on top of the mobile column) */}
         <header className="bg-[#143d2c] text-white px-4 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-          <NavLink to="/commuter/pass" className="flex items-center">
+          <NavLink to="/pass" className="flex items-center">
             <span className="font-bold text-lg" style={{ fontFamily: 'serif' }}>
               Smart<span className="text-[#f1a81f]">Transit</span>
             </span>
@@ -51,7 +51,7 @@ export default function CommuterLayout() {
         >
           <div className="flex justify-around items-center h-16">
             <NavLink
-              to="/commuter"
+              to="/"
               end
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center w-full h-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
@@ -64,7 +64,7 @@ export default function CommuterLayout() {
             </NavLink>
             
             <NavLink
-              to="/commuter/plan"
+              to="/plan"
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center w-full h-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
                   isActive ? 'text-[#f1a81f]' : 'text-white/60 hover:text-white'
@@ -76,7 +76,7 @@ export default function CommuterLayout() {
             </NavLink>
 
             <NavLink
-              to="/commuter/tickets"
+              to="/tickets"
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center w-full h-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
                   isActive ? 'text-[#f1a81f]' : 'text-white/60 hover:text-white'
@@ -88,7 +88,7 @@ export default function CommuterLayout() {
             </NavLink>
 
             <NavLink
-              to="/commuter/pass"
+              to="/pass"
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center w-full h-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
                   isActive ? 'text-[#f1a81f]' : 'text-white/60 hover:text-white'

@@ -131,27 +131,37 @@ class DeviceHandshakeView(APIView):
             # Update last active
             device.save()
         else:
-            # Create a new guest user
-            short_uuid = str(device_uuid)[:8]
-            random_suffix = random.randint(1000, 9999)
-            username = f'guest_{short_uuid}_{random_suffix}'
-            
-            while User.objects.filter(username=username).exists():
-                random_suffix = random.randint(1000, 9999)
-                username = f'guest_{short_uuid}_{random_suffix}'
+            from django.db import transaction, IntegrityError
+            try:
+                with transaction.atomic():
+                    # Create a new guest user
+                    short_uuid = str(device_uuid)[:8]
+                    random_suffix = random.randint(1000, 9999)
+                    username = f'guest_{short_uuid}_{random_suffix}'
+                    
+                    while User.objects.filter(username=username).exists():
+                        random_suffix = random.randint(1000, 9999)
+                        username = f'guest_{short_uuid}_{random_suffix}'
 
-            user = User.objects.create_user(
-                username=username,
-                password=User.objects.make_random_password(),
-                role=User.Role.COMMUTER
-            )
-            # Default demo location at Nairobi CBD
-            user.demo_latitude = -1.2921
-            user.demo_longitude = 36.8219
-            user.demo_location_label = 'Nairobi CBD'
-            user.save()
+                    user = User.objects.create_user(
+                        username=username,
+                        password=User.objects.make_random_password(),
+                        role=User.Role.COMMUTER
+                    )
+                    # Default demo location at Nairobi CBD
+                    user.demo_latitude = -1.2921
+                    user.demo_longitude = 36.8219
+                    user.demo_location_label = 'Nairobi CBD'
+                    user.save()
 
-            device = Device.objects.create(device_uuid=device_uuid, user=user)
+                    device = Device.objects.create(device_uuid=device_uuid, user=user)
+            except IntegrityError:
+                # Concurrent request created the device; retrieve it
+                device = Device.objects.filter(device_uuid=device_uuid).first()
+                if device:
+                    user = device.user
+                else:
+                    return Response({'detail': 'Device registration conflict.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)

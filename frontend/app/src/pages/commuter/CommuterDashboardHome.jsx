@@ -108,7 +108,7 @@ export default function CommuterDashboardHome() {
         </p>
 
         <button
-          onClick={() => navigate('/commuter/plan')}
+          onClick={() => navigate('/plan')}
           className="mt-5 bg-[#f1a81f] text-emerald-950 font-bold text-sm px-6 py-3 rounded-xl hover:bg-yellow-500 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-md cursor-pointer inline-flex items-center gap-2"
         >
           Book a Trip Now
