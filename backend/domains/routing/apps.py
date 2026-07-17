@@ -27,7 +27,5 @@ class RoutingConfig(AppConfig):
 
             threading.Thread(target=run_seed_async, daemon=True).start()
             
-            # Start the background GPS simulator loop
-            from .simulator import start_gps_simulation
-            threading.Thread(target=start_gps_simulation, daemon=True).start()
+
 
