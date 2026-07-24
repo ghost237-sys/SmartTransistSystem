@@ -111,6 +111,7 @@ class RouteAnalyticsSerializer(serializers.Serializer):
     total_passengers = serializers.IntegerField()
     total_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
     average_occupancy_percent = serializers.FloatField()
+    estimated_net_profit = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
 
 
 class FleetAnalyticsSerializer(serializers.Serializer):
@@ -122,4 +123,8 @@ class FleetAnalyticsSerializer(serializers.Serializer):
     total_trips = serializers.IntegerField()
     active_buses = serializers.IntegerField(required=False)
     delayed_buses = serializers.IntegerField(required=False)
+    estimated_leakage_prevented = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
+    fee_per_commuter = serializers.FloatField(required=False)
+    total_subscription_cost = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
+    net_subscription_roi = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
     routes = RouteAnalyticsSerializer(many=True)

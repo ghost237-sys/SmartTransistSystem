@@ -63,6 +63,16 @@ docker compose exec backend python manage.py migrate
 
 The API will be available at `http://localhost:8000`.
 
+## Deployed Production Links
+
+The platform is deployed and accessible live at the following production URLs:
+
+- **Commuter Application (User Portal)**: [smarttransitsystem-frontend.onrender.com](https://smarttransitsystem-frontend.onrender.com)
+  - *No passwords required — automatic passwordless device handshake.*
+- **Fleet Owner & Staff Dashboard**: [smarttransitsystem-admin.onrender.com](https://smarttransitsystem-admin.onrender.com)
+  - *Login form portal for fleet owners, conductors, and drivers.*
+- **Backend API Server**: [smarttransistsystem.onrender.com](https://smarttransistsystem.onrender.com)
+
 ## License
 
 Not yet decided.

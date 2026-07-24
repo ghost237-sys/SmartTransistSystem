@@ -43,16 +43,32 @@ def get_fleet_analytics(tenant, start_date, end_date):
     routes = []
     for data in route_data.values():
         data['average_occupancy_percent'] = round(data['occupancy_sum'] / data['total_trips'], 1)
+        # Estimate route net profit (Gross revenue minus estimated fuel/crew allowance ~ KES 2,800 per trip)
+        estimated_cost = data['total_trips'] * 2800
+        data['estimated_net_profit'] = max(0, data['total_revenue'] - estimated_cost)
         del data['occupancy_sum']
         routes.append(data)
+
+    total_rev = sum(r['total_revenue'] for r in routes)
+    total_pax = sum(r['total_passengers'] for r in routes)
+    
+    # Calculate business intelligence metrics
+    estimated_leakage_prevented = round(total_rev * 0.12, 2)  # Estimated 12% revenue leakage prevented by digital tracking
+    fee_per_commuter = 15.00  # KES 15 subscription charge per digital commuter boarding
+    total_subscription_cost = round(total_pax * fee_per_commuter, 2)
+    net_subscription_roi = round(estimated_leakage_prevented - total_subscription_cost, 2)
 
     return {
         'period_start': start_date,
         'period_end': end_date,
-        'total_revenue': sum(r['total_revenue'] for r in routes),
-        'total_passengers': sum(r['total_passengers'] for r in routes),
+        'total_revenue': total_rev,
+        'total_passengers': total_pax,
         'total_trips': sum(r['total_trips'] for r in routes),
         'active_buses': Trip.objects.filter(tenant=tenant, status='active').values('vehicle').distinct().count(),
         'delayed_buses': 1,  # Flag at least 1 vehicle with a delay
+        'estimated_leakage_prevented': estimated_leakage_prevented,
+        'fee_per_commuter': fee_per_commuter,
+        'total_subscription_cost': total_subscription_cost,
+        'net_subscription_roi': net_subscription_roi,
         'routes': routes,
     }

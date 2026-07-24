@@ -19,9 +19,6 @@ import MyTicketsPage from './pages/commuter/MyTicketsPage'
 import MyCommuterPassPage from './pages/commuter/MyCommuterPassPage'
 
 // Fleet owner pages
-// ... (omitted unchanged imports for brevity, let's target the route mapping)
-
-// Fleet owner pages
 import FleetLayout from './layouts/FleetLayout'
 import DashboardPage from './pages/fleet/DashboardPage'
 import LiveMapPage from './pages/fleet/LiveMapPage'
@@ -45,8 +42,6 @@ import DriverDashboardPage from './pages/driver/DriverDashboardPage'
 import TripsPage from './pages/driver/TripsPage'
 import NavigatePage from './pages/driver/NavigatePage'
 import DriverManifestPage from './pages/driver/DriverManifestPage'
-
-const isAdminMode = import.meta.env.VITE_APP_MODE === 'admin'
 
 function RoleRedirect() {
   const { user, loading } = useAuth()
@@ -75,63 +70,54 @@ function RoleRedirect() {
 }
 
 export default function App() {
-  if (isAdminMode) {
-    return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/unauthorized" element={<UnauthorizedPage />} />
-        <Route path="/" element={<RoleRedirect />} />
-
-        {/* Fleet owner routes */}
-        <Route path="/fleet" element={
-          <RequireAuth roles={['fleet_owner', 'super_admin']}>
-            <FleetLayout />
-          </RequireAuth>
-        }>
-          <Route index element={<DashboardPage />} />
-          <Route path="live" element={<LiveMapPage />} />
-          <Route path="analytics" element={<AnalyticsPage />} />
-          <Route path="parcels" element={<ParcelsPage />} />
-          <Route path="vehicles" element={<VehiclesPage />} />
-          <Route path="drivers" element={<DriversPage />} />
-          <Route path="conductors" element={<ConductorsPage />} />
-          <Route path="routes" element={<RoutesPage />} />
-          <Route path="passes" element={<PassTiersManagementPage />} />
-        </Route>
-
-        {/* Conductor routes */}
-        <Route path="/conductor" element={
-          <RequireAuth roles={['conductor']}>
-            <ConductorLayout />
-          </RequireAuth>
-        }>
-          <Route index element={<ManifestPage />} />
-          <Route path="scan" element={<ScanPage />} />
-          <Route path="cash" element={<CashPage />} />
-        </Route>
-
-        {/* Driver routes */}
-        <Route path="/driver" element={
-          <RequireAuth roles={['driver']}>
-            <DriverLayout />
-          </RequireAuth>
-        }>
-          <Route index element={<DriverDashboardPage />} />
-          <Route path="trips" element={<TripsPage />} />
-          <Route path="manifest" element={<DriverManifestPage />} />
-          <Route path="manifest/:tripId" element={<DriverManifestPage />} />
-          <Route path="trip/:tripId" element={<NavigatePage />} />
-        </Route>
-
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    )
-  }
-
-  // Commuter Mode Routing (Default)
   return (
     <Routes>
+      {/* Auth & Utility Routes */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
+      <Route path="/role-redirect" element={<RoleRedirect />} />
+
+      {/* Fleet owner routes */}
+      <Route path="/fleet" element={
+        <RequireAuth roles={['fleet_owner', 'super_admin']}>
+          <FleetLayout />
+        </RequireAuth>
+      }>
+        <Route index element={<DashboardPage />} />
+        <Route path="live" element={<LiveMapPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="parcels" element={<ParcelsPage />} />
+        <Route path="vehicles" element={<VehiclesPage />} />
+        <Route path="drivers" element={<DriversPage />} />
+        <Route path="conductors" element={<ConductorsPage />} />
+        <Route path="routes" element={<RoutesPage />} />
+        <Route path="passes" element={<PassTiersManagementPage />} />
+      </Route>
+
+      {/* Conductor routes */}
+      <Route path="/conductor" element={
+        <RequireAuth roles={['conductor']}>
+          <ConductorLayout />
+        </RequireAuth>
+      }>
+        <Route index element={<ManifestPage />} />
+        <Route path="scan" element={<ScanPage />} />
+        <Route path="cash" element={<CashPage />} />
+      </Route>
+
+      {/* Driver routes */}
+      <Route path="/driver" element={
+        <RequireAuth roles={['driver']}>
+          <DriverLayout />
+        </RequireAuth>
+      }>
+        <Route index element={<DriverDashboardPage />} />
+        <Route path="trips" element={<TripsPage />} />
+        <Route path="manifest" element={<DriverManifestPage />} />
+        <Route path="manifest/:tripId" element={<DriverManifestPage />} />
+        <Route path="trip/:tripId" element={<NavigatePage />} />
+      </Route>
 
       {/* Commuter Layout and Dashboard Home directly at root */}
       <Route path="/" element={<CommuterLayout />}>
